@@ -104,7 +104,7 @@ Full events & exports: [`docs/`](docs/).
 
 ## 🖼️ Add‑on clothing (optional)
 
-Base GTA content works out of the box via the CDN. For custom add‑on clothing you can point the UI at your own CDN, serve images locally, or use the free companion **`orb-greenscreen`** (`/screenshots` menu) to capture them. See [`docs/CUSTOM_CLOTHING.md`](docs/CUSTOM_CLOTHING.md).
+Base GTA content works out of the box via the CDN. For custom add‑on clothing you can point the UI at your own CDN, serve images locally, or use the free companion **`orb-greenscreen`** (`/screenshots` menu) to capture them. See https://theorb.tech/docs/orb-clothing-overview
 
 ---
 
