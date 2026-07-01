@@ -12,7 +12,7 @@ Character creator · Clothing / Barber / Tattoo / Accessories stores · Saved & 
 ![license](https://img.shields.io/badge/license-Proprietary-red)
 
 [**🛒 Get it on TheOrb Store**](https://theorb.tech)
-[**📃 Docs →**](https://theorb.tech/docs/orb-clothing-overview)
+[**📃 Docs**](https://theorb.tech/docs/orb-clothing-overview)
 
 ![ORB Clothing](https://dunb17ur4ymx4.cloudfront.net/packages/images/71de3a363f9cf17c03cc9e2255803dd0d926f339.png)
 
