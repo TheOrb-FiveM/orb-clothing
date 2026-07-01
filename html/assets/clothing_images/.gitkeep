@@ -1,0 +1,16 @@
+This folder is where add-on clothing thumbnails live when using the
+local image host (no external CDN).
+
+Drop PNG files here manually, or use the orb-clothing_companion
+importer to auto-populate from orb-greenscreen output.
+
+Filename format: {model}-{prefix}-{drawable}.png
+
+Examples:
+    mp_m_freemode_01-torso_1-400.png
+    mp_m_freemode_01-helmet_1-6.png
+    mp_f_freemode_01-pants_1-155.png
+
+After adding files, `restart orb-clothing` so FiveM re-scans the folder.
+
+See orb-clothing_companion/SETUP.md for the full walkthrough.

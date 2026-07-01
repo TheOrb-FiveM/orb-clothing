@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Character Creator</title>
+    <script src="config_ui.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container hidden" id="container">
+        <!-- Semi-transparent dark overlay on left side -->
+        <div class="left-gradient"></div>
+
+        <!-- Main UI wrapper: sidebar + content -->
+        <div class="ui-wrapper">
+            <!-- Category Sidebar (narrow, left) -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <h1 class="panel-title" id="panelTitle">CHARACTER CREATOR</h1>
+                    <span class="panel-subtitle" id="panelSubtitle">Customize your appearance</span>
+                </div>
+                <div class="sidebar-nav" id="categoryTabs">
+                    <!-- JS populates category tabs here -->
+                </div>
+                <div class="sidebar-footer">
+                    <div class="sidebar-footer-buttons">
+                        <button class="footer-btn reset-btn" id="resetBtn">
+                            <svg viewBox="0 0 24 24" fill="none"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/></svg>
+                            <span data-i18n="reset_btn">RESET</span>
+                        </button>
+                        <button class="footer-btn exit-btn" id="exitBtn">
+                            <svg viewBox="0 0 24 24" fill="none"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5a2 2 0 00-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 002 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" fill="currentColor"/></svg>
+                            <span data-i18n="exit_btn">EXIT</span>
+                        </button>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Panel (wider, right of sidebar) -->
+            <div class="content-panel">
+                <div class="subcategory-tabs" id="subcategoryTabs">
+                    <!-- JS populates subcategory tabs here -->
+                </div>
+                <div class="options-panel" id="optionsPanel">
+                    <!-- JS populates options here -->
+                </div>
+                <div class="detail-panel hidden" id="detailPanel">
+                    <!-- JS populates detail controls (texture, color, opacity) here -->
+                </div>
+                <div class="scrollbar-track">
+                    <div class="scrollbar-thumb" id="scrollbarThumb"></div>
+                </div>
+                <button class="save-btn" id="saveBtn">SAVE CHARACTER</button>
+            </div>
+        </div>
+
+        <!-- Scene toolbar (top-right, between ped and content panel) -->
+        <div class="scene-toolbar" id="sceneToolbar">
+            <button class="scene-btn" id="btnBlur" data-tooltip="Background Blur">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M6 13c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm-3 .5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zM6 5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm15 5.5c.28 0 .5-.22.5-.5s-.22-.5-.5-.5-.5.22-.5.5.22.5.5.5zM14 7c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm0-3.5c.28 0 .5-.22.5-.5s-.22-.5-.5-.5-.5.22-.5.5.22.5.5.5zm-11 10c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm7 7c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm0-17c.28 0 .5-.22.5-.5s-.22-.5-.5-.5-.5.22-.5.5.22.5.5.5zM10 7c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm0 5.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm8 .5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0-4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm3 8.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zM14 17c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 3.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zm-4-12c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0 8.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm4-4.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-4c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z" fill="currentColor"/></svg>
+            </button>
+            <button class="scene-btn" id="btnLight" data-tooltip="Spotlight">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6A4.997 4.997 0 017 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1z" fill="currentColor"/></svg>
+            </button>
+        </div>
+
+        <!-- Rotation controls (bottom center) -->
+        <div class="rotate-controls" id="rotateControls">
+            <button class="rotate-btn" id="rotatLeft">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="control-hints">
+                <span class="rotate-hint" data-i18n="hint_rotate">DRAG TO ROTATE &amp; PAN</span>
+                <span class="rotate-hint" data-i18n="hint_zoom">SCROLL TO ZOOM</span>
+            </div>
+            <button class="rotate-btn" id="rotatRight">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+        </div>
+
+        <!-- Invisible drag zone for character rotation -->
+        <div class="drag-zone" id="dragZone"></div>
+    </div>
+
+    <!-- ═══════ Admin Store Manager Panel ═══════ -->
+    <div class="admin-overlay hidden" id="adminOverlay">
+        <div class="admin-panel">
+            <!-- Header -->
+            <div class="admin-panel-header">
+                <div class="admin-header-left">
+                    <div class="status-dot"></div>
+                    <h1 class="admin-panel-title" data-i18n="admin_title">STORE ADMIN</h1>
+                </div>
+                <button class="admin-close-btn" id="adminCloseBtn">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+
+            <div class="admin-panel-body">
+                <!-- Sidebar -->
+                <div class="admin-sidebar">
+                    <button class="admin-new-btn" id="adminNewBtn" data-i18n="admin_new_store">+ NEW STORE</button>
+                    <div class="admin-store-list" id="adminStoreList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Editor -->
+                <div class="admin-editor" id="adminEditor">
+                    <!-- Type selector -->
+                    <div class="admin-section">
+                        <div class="admin-section-label"><div class="status-dot"></div><span data-i18n="admin_type">TYPE</span></div>
+                        <div class="admin-type-grid" id="adminTypeGrid">
+                            <div class="admin-type-card" data-type="clothing" data-i18n="admin_type_clothing">CLOTHING</div>
+                            <div class="admin-type-card" data-type="barber" data-i18n="admin_type_barber">BARBER</div>
+                            <div class="admin-type-card" data-type="tattoo" data-i18n="admin_type_tattoo">TATTOO</div>
+                            <div class="admin-type-card" data-type="accessories" data-i18n="admin_type_accessories">ACCESSORIES</div>
+                        </div>
+                    </div>
+
+                    <!-- Zone position -->
+                    <div class="admin-section">
+                        <div class="admin-section-label"><div class="status-dot"></div><span data-i18n="admin_zone_position">ZONE POSITION</span></div>
+                        <div class="admin-coords-display" id="adminZoneCoords">
+                            <span class="admin-coord">X: <b id="zoneX">---</b></span>
+                            <span class="admin-coord">Y: <b id="zoneY">---</b></span>
+                            <span class="admin-coord">Z: <b id="zoneZ">---</b></span>
+                            <span class="admin-coord">H: <b id="zoneW">---</b></span>
+                        </div>
+                        <button class="admin-action-btn" id="adminSetZone" data-i18n="admin_set_position">SET TO MY POSITION</button>
+                        <button class="admin-action-btn admin-teleport-btn" id="adminTeleport" data-i18n="admin_teleport">TELEPORT TO STORE</button>
+                    </div>
+
+                    <!-- Zone size -->
+                    <div class="admin-section">
+                        <div class="admin-section-label"><div class="status-dot"></div><span data-i18n="admin_zone_size">ZONE SIZE</span></div>
+                        <div class="admin-size-row">
+                            <div class="admin-number-control">
+                                <span class="admin-number-label" data-i18n="admin_width">WIDTH</span>
+                                <div class="admin-number-row">
+                                    <button class="admin-num-btn" data-field="width" data-dir="-1">-</button>
+                                    <span class="admin-num-value" id="adminWidth">14.0</span>
+                                    <button class="admin-num-btn" data-field="width" data-dir="1">+</button>
+                                </div>
+                            </div>
+                            <div class="admin-number-control">
+                                <span class="admin-number-label" data-i18n="admin_length">LENGTH</span>
+                                <div class="admin-number-row">
+                                    <button class="admin-num-btn" data-field="length" data-dir="-1">-</button>
+                                    <span class="admin-num-value" id="adminLength">10.0</span>
+                                    <button class="admin-num-btn" data-field="length" data-dir="1">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ped position -->
+                    <div class="admin-section">
+                        <div class="admin-section-label"><div class="status-dot"></div><span data-i18n="admin_ped_pos_title">PED POSITION</span></div>
+                        <div class="admin-coords-display" id="adminPedCoords">
+                            <span class="admin-coord">X: <b id="pedX">---</b></span>
+                            <span class="admin-coord">Y: <b id="pedY">---</b></span>
+                            <span class="admin-coord">Z: <b id="pedZ">---</b></span>
+                            <span class="admin-coord">H: <b id="pedW">---</b></span>
+                        </div>
+                        <button class="admin-action-btn" id="adminSetPed" data-i18n="admin_set_position">SET TO MY POSITION</button>
+                    </div>
+
+                    <!-- Camera preset -->
+                    <div class="admin-section">
+                        <div class="admin-section-label"><div class="status-dot"></div><span data-i18n="admin_camera_preset">CAMERA PRESET</span></div>
+                        <div class="admin-camera-grid" id="adminCameraGrid">
+                            <div class="admin-camera-card" data-preset="full" data-i18n="admin_cam_full">FULL</div>
+                            <div class="admin-camera-card" data-preset="face" data-i18n="admin_cam_face">FACE</div>
+                            <div class="admin-camera-card" data-preset="upper" data-i18n="admin_cam_upper">UPPER</div>
+                            <div class="admin-camera-card" data-preset="lower" data-i18n="admin_cam_lower">LOWER</div>
+                            <div class="admin-camera-card" data-preset="feet" data-i18n="admin_cam_feet">FEET</div>
+                        </div>
+                        <button class="admin-action-btn admin-preview-btn" id="adminPreviewBtn" data-i18n="admin_preview_camera">PREVIEW CAMERA</button>
+                    </div>
+
+                    <!-- Optional settings -->
+                    <div class="admin-section">
+                        <div class="admin-section-label"><div class="status-dot"></div><span data-i18n="admin_optional">OPTIONAL</span></div>
+                        <div class="admin-input-group">
+                            <label class="admin-input-label" data-i18n="admin_label">Label</label>
+                            <input type="text" class="admin-input" id="adminLabel" placeholder="Store name..." data-i18n-ph="admin_label_ph">
+                        </div>
+                        <div class="admin-input-group">
+                            <label class="admin-input-label" data-i18n="admin_job_lock">Job Lock</label>
+                            <input type="text" class="admin-input" id="adminJobLock" placeholder="Leave empty for none..." data-i18n-ph="admin_job_lock_ph">
+                        </div>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="admin-actions">
+                        <button class="admin-delete-btn hidden" id="adminDeleteBtn" data-i18n="admin_delete">DELETE</button>
+                        <button class="admin-save-btn" id="adminSaveBtn" data-i18n="admin_save_store">SAVE STORE</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete confirmation modal -->
+        <div class="admin-confirm-overlay hidden" id="adminConfirmOverlay">
+            <div class="admin-confirm-box">
+                <h2 class="admin-confirm-title" data-i18n="admin_delete_store_q">DELETE STORE?</h2>
+                <p class="admin-confirm-text" data-i18n="admin_delete_warning">This action cannot be undone. The store will be removed for all players.</p>
+                <div class="admin-confirm-buttons">
+                    <button class="admin-confirm-cancel" id="adminConfirmCancel" data-i18n="cancel">CANCEL</button>
+                    <button class="admin-confirm-delete" id="adminConfirmDelete" data-i18n="admin_delete">DELETE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

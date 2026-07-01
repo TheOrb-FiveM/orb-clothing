@@ -1,0 +1,3 @@
+# Runtime state — created on first boot, must NOT be committed.
+# The seed marker prevents re-seeding default stores; it's machine-local.
+data/.stores_seeded
