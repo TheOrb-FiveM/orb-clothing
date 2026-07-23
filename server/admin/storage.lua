@@ -168,6 +168,7 @@ function AdminStorage.SeedDefaultsIfNeeded()
             cameraPreset = (storeType and storeType.openCamera) or 'full',
             label        = s.label,
             jobLock      = s.jobLock,
+            showBlip     = true,
             default      = true,
             createdBy    = 'config_seed',
             createdAt    = os.date('!%Y-%m-%dT%H:%M:%SZ'),

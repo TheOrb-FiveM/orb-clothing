@@ -5,7 +5,7 @@ lua54 'yes'
 name 'orb-clothing'
 author 'TheOrb Scripts'
 description 'Advanced Character Creator & Clothing System'
-version '1.3.1'
+version '1.5.0'
 
 dependencies {
     'ox_lib',
@@ -83,6 +83,10 @@ server_scripts {
     'server/main.lua',
     'server/load.lua',
     'server/outfits.lua',
+
+    -- Migration tool: /migrateclothing, /migrateqs, /migrateqb + Config.AutoImport
+    -- (imports looks/outfits from qs-appearance or qb-clothing)
+    'server/migrate_qs.lua',
 
     -- Compatibility shims (opt-in via Config.CompatMode)
     'server/compat/qb_clothing.lua',

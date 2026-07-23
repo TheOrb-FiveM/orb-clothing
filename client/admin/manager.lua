@@ -31,6 +31,7 @@ function MergeAdminStores(adminStores)
             size        = s.size and vector2(s.size.x, s.size.y) or nil,
             label       = s.label,
             jobLock     = s.jobLock,
+            showBlip    = s.showBlip ~= false,   -- default true; only explicit false hides it
             _adminId    = s.id
         }
     end
@@ -223,8 +224,15 @@ end
 RegisterNetEvent('orb-clothing:client:adminSaveResult', function(data)
     if data.success then
         lib.notify({ title = L('store_admin_title'), description = L('store_saved'), type = 'success' })
-        -- Update the NUI sidebar with fresh list
-        SendNUIMessage({ action = 'adminStoresSynced', stores = data.stores })
+        -- Update the NUI sidebar with fresh list. Pass the saved store's id so the
+        -- NUI can keep (or, for a brand-new store, switch into) edit mode on it —
+        -- otherwise a create leaves the editor in "new" mode and the next save
+        -- silently makes a duplicate instead of updating.
+        SendNUIMessage({
+            action = 'adminStoresSynced',
+            stores = data.stores,
+            savedId = data.store and data.store.id or nil,
+        })
     end
 end)
 

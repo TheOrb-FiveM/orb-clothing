@@ -6,13 +6,12 @@
 
 Character creator · Clothing / Barber / Tattoo / Accessories stores · Saved & shareable outfits · In‑game store admin · Multi‑framework · EN / ES
 
-![version](https://img.shields.io/badge/version-1.3.1-00f0ff)
+![version](https://img.shields.io/badge/version-1.3.4-00f0ff)
 ![frameworks](https://img.shields.io/badge/framework-QBox%20·%20QBCore%20·%20ESX%20·%20Standalone-informational)
 ![deps](https://img.shields.io/badge/deps-ox__lib%20·%20oxmysql-blueviolet)
 ![license](https://img.shields.io/badge/license-Proprietary-red)
 
-[**🛒 Get it on TheOrb Store**](https://theorb.tech)
-[**📃 Docs**](https://theorb.tech/docs/orb-clothing-overview)
+[**🛒 Get it on TheOrb Store →**](https://theorb.tech)
 
 ![ORB Clothing](https://dunb17ur4ymx4.cloudfront.net/packages/images/71de3a363f9cf17c03cc9e2255803dd0d926f339.png)
 
@@ -62,7 +61,7 @@ Character creator · Clothing / Barber / Tattoo / Accessories stores · Saved & 
 
 > You do **not** need to import SQL, host any images, or set store coordinates by hand.
 
-Framework‑specific integration (multichar / character select) is documented in https://theorb.tech/docs/orb-clothing-overview.
+Framework‑specific integration (multichar / character select) is documented in [`docs/INSTALL_QBCORE.md`](docs/INSTALL_QBCORE.md).
 
 ---
 
@@ -104,7 +103,7 @@ Full events & exports: [`docs/`](docs/).
 
 ## 🖼️ Add‑on clothing (optional)
 
-Base GTA content works out of the box via the CDN. For custom add‑on clothing you can point the UI at your own CDN, serve images locally, or use the free companion **`orb-greenscreen`** (`/screenshots` menu) to capture them. See https://theorb.tech/docs/orb-clothing-overview
+Base GTA content works out of the box via the CDN. For custom add‑on clothing you can point the UI at your own CDN, serve images locally, or use the free companion **`orb-greenscreen`** (`/screenshots` menu) to capture them. See [`docs/CUSTOM_CLOTHING.md`](docs/CUSTOM_CLOTHING.md).
 
 ---
 

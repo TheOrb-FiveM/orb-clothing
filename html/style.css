@@ -27,6 +27,38 @@ html, body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Scrollbars ────────────────────────────────────────────────────────
+   ONE consistent, comfortably clickable scrollbar for every scrollable panel.
+   The old per-panel bars were 0.15–0.3vh wide (2–3px on 1080p) with a barely
+   visible thumb — near-impossible to grab. This global rule covers every
+   scroll area (including ones that never had their own style); a couple of
+   panels still override the WIDTH below where they need a tighter fit, but the
+   look stays identical. */
+::-webkit-scrollbar {
+    width: 0.9vh;
+    height: 0.9vh;
+}
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 1vh;
+    margin: 0.4vh 0;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 1vh;
+    border: 0.18vh solid transparent;
+    background-clip: padding-box;
+    transition: background 0.15s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--primary-rgb, 255, 255, 255), 0.55);
+    background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active {
+    background: rgba(var(--primary-rgb, 255, 255, 255), 0.75);
+    background-clip: padding-box;
+}
+
 /* ── Container & Layout ────────────────────────────────────────────── */
 
 .container {
@@ -125,15 +157,7 @@ html, body {
     overflow-x: hidden;
 }
 
-.sidebar-nav::-webkit-scrollbar {
-    width: 0.15vh;
-    background: transparent;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 1vh;
-}
+/* scrollbar: uses the global style */
 
 .sidebar-footer {
     padding: 1.2vh 1vh 1.4vh;
@@ -453,15 +477,7 @@ html, body {
     display: none;
 }
 
-.options-panel::-webkit-scrollbar {
-    width: 0.2vh;
-    background: transparent;
-}
-
-.options-panel::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 1vh;
-}
+/* scrollbar: uses the global style */
 
 /* ── Option Section (collapsible) ──────────────────────────────────── */
 
@@ -492,6 +508,50 @@ html, body {
     display: flex;
     align-items: center;
     gap: 0.6vh;
+}
+
+/* Jump-to-number box in a section header */
+.section-jump {
+    display: flex;
+    align-items: center;
+    gap: 0.4vh;
+    flex-shrink: 0;
+}
+
+.section-jump-input {
+    width: 4.8vh;
+    padding: 0.3vh 0.4vh;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.4vh;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.85vh;
+    font-weight: 600;
+    text-align: center;
+    outline: none;
+    -moz-appearance: textfield;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.section-jump-input::-webkit-inner-spin-button,
+.section-jump-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.section-jump-input::placeholder { color: var(--text-disabled); }
+
+.section-jump-input:focus {
+    border-color: rgba(var(--primary-rgb, 255, 255, 255), 0.6);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.section-jump-total {
+    font-family: var(--font-body);
+    font-size: 0.75vh;
+    color: var(--text-disabled);
+    letter-spacing: 0.03vh;
 }
 
 .section-title span {
@@ -585,15 +645,7 @@ html, body {
     max-height: 40vh;
 }
 
-.items-grid::-webkit-scrollbar {
-    width: 0.2vh;
-    background: transparent;
-}
-
-.items-grid::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 1vh;
-}
+/* scrollbar: uses the global style */
 
 /* ── Item Card ─────────────────────────────────────────────────────── */
 
@@ -1018,15 +1070,7 @@ html, body {
     overflow-x: hidden;
 }
 
-.tattoo-grid::-webkit-scrollbar {
-    width: 0.2vh;
-    background: transparent;
-}
-
-.tattoo-grid::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 1vh;
-}
+/* scrollbar: uses the global style */
 
 .tattoo-card {
     display: flex;
@@ -1791,14 +1835,7 @@ html, body {
     padding: 0.8vh 0;
 }
 
-.checkout-items::-webkit-scrollbar {
-    width: 0.3vh;
-}
-
-.checkout-items::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 0.15vh;
-}
+/* scrollbar: uses the global style */
 
 .checkout-item {
     display: flex;
@@ -2040,19 +2077,7 @@ html, body {
     padding: 0 0.5vh 1vh 0.5vh;
 }
 
-.admin-store-list::-webkit-scrollbar {
-    width: 0.2vh;
-    background: transparent;
-}
-
-.admin-store-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 1vh;
-}
-
-.admin-store-list::-webkit-scrollbar-track {
-    background: transparent;
-}
+/* scrollbar: uses the global style */
 
 .admin-store-card {
     padding: 0.9vh 1vh;
@@ -2139,19 +2164,7 @@ html, body {
     gap: 1.5vh;
 }
 
-.admin-editor::-webkit-scrollbar {
-    width: 0.2vh;
-    background: transparent;
-}
-
-.admin-editor::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 1vh;
-}
-
-.admin-editor::-webkit-scrollbar-track {
-    background: transparent;
-}
+/* scrollbar: uses the global style */
 
 .admin-section {
     display: flex;
@@ -2386,6 +2399,70 @@ html, body {
 .admin-input:focus {
     border-color: rgba(var(--primary-rgb), 0.4);
     background: rgba(255, 255, 255, 0.04);
+}
+
+/* Admin blip toggle */
+.admin-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1vh;
+    padding: 0.7vh 1vh;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0.4vh;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.admin-toggle-row:hover,
+.admin-toggle-row:focus-visible {
+    border-color: rgba(var(--primary-rgb), 0.4);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.admin-toggle-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2vh;
+}
+
+.admin-toggle-hint {
+    font-family: var(--font-body);
+    font-size: 0.7vh;
+    color: var(--text-disabled);
+    letter-spacing: 0.04vh;
+}
+
+.admin-toggle-switch {
+    flex-shrink: 0;
+    position: relative;
+    width: 3.4vh;
+    height: 1.7vh;
+    border-radius: 1vh;
+    background: rgba(255, 255, 255, 0.1);
+    transition: background 0.2s ease;
+}
+
+.admin-toggle-knob {
+    position: absolute;
+    top: 0.2vh;
+    left: 0.2vh;
+    width: 1.3vh;
+    height: 1.3vh;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.admin-toggle-row[aria-checked="true"] .admin-toggle-switch {
+    background: rgba(var(--primary-rgb), 0.5);
+}
+
+.admin-toggle-row[aria-checked="true"] .admin-toggle-knob {
+    transform: translateX(1.7vh);
+    background: var(--primary, #fff);
 }
 
 /* Admin Bottom Actions */

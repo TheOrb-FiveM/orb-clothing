@@ -18,6 +18,7 @@ local function RebuildServerStoreLocations()
             size        = s.size and vector2(s.size.x, s.size.y) or nil,
             label       = s.label,
             jobLock     = s.jobLock,
+            showBlip    = s.showBlip ~= false,   -- default true; only explicit false hides it
             _adminId    = s.id
         }
     end
@@ -46,6 +47,10 @@ RegisterNetEvent('orb-clothing:server:adminSaveStore', function(data)
         })
         return
     end
+
+    -- Normalise the blip toggle to a real boolean — never trust the NUI's shape.
+    -- Absent = true (a store saved before this option keeps its blip).
+    data.showBlip = data.showBlip ~= false
 
     local result
     if data.id then
@@ -113,6 +118,55 @@ RegisterNetEvent('orb-clothing:server:adminDeleteStore', function(data)
         })
     end
 end)
+
+-- ── /skin [id] — admin: open the FULL creator on a player ────────────────
+-- No id  → opens it on yourself.
+-- With id → opens it on that player (must be online).
+-- Permission is checked HERE, server-side, so the client event can't be abused
+-- to force the editor onto someone else.
+
+local function notifyAdmin(src, key, arg)
+    if src == 0 then
+        lib.print.info(('[orb-clothing] %s'):format(arg and L(key, arg) or L(key)))
+        return
+    end
+    TriggerClientEvent('orb-clothing:client:adminNotify', src, {
+        title = L('skin_title'),
+        description = arg and L(key, arg) or L(key),
+        type = 'inform',
+    })
+end
+
+RegisterCommand('skin', function(source, args)
+    local src = source
+
+    -- Console (src 0) is always allowed but MUST name a target — it has no ped.
+    if src ~= 0 and not AdminStorage.IsAdmin(src) then
+        notifyAdmin(src, 'skin_no_perm')
+        return
+    end
+
+    -- Resolve target: explicit id, else the caller. A non-numeric arg falls back
+    -- to self rather than silently doing nothing.
+    local target = args[1] and tonumber(args[1]) or src
+    if not target or target == 0 then
+        notifyAdmin(src, 'skin_need_id')   -- console with no id
+        return
+    end
+
+    if not GetPlayerName(target) then
+        notifyAdmin(src, 'skin_offline', tostring(args[1] or target))
+        return
+    end
+
+    TriggerClientEvent('orb-clothing:client:openFullEditor', target)
+
+    if target == src then
+        notifyAdmin(src, 'skin_opened_self')
+    else
+        notifyAdmin(src, 'skin_opened_target', GetPlayerName(target) or tostring(target))
+    end
+end, false)  -- permission enforced inside via AdminStorage.IsAdmin
 
 -- ── Initial rebuild on resource start ───────────────────────────────────
 

@@ -215,6 +215,13 @@ MySQL.ready(function()
     -- MirrorSkin keeps this table in sync with character_appearance on every
     -- save, which in turn lets the char-select preview work unmodified.
     -- Schema matches stock qb-clothing so it's a drop-in.
+    --
+    -- Wait for detection to SETTLE first (see bridge/_detect.lua): if the
+    -- framework started after us, the load-time snapshot says 'standalone' and
+    -- this whole block would be skipped — no playerskins mirror, broken
+    -- char-select previews — purely because of server.cfg ordering.
+    while not Bridge.FrameworkSettled do Wait(250) end
+
     if Bridge.Framework == 'qbcore' or Bridge.Framework == 'qbx' then
         MySQL.update.await([[
             CREATE TABLE IF NOT EXISTS `playerskins` (
@@ -227,6 +234,16 @@ MySQL.ready(function()
                 KEY `citizenid` (`citizenid`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
         ]], {})
+
+        -- Heal legacy skins: stock qb-clothing stored the model as a STRING
+        -- ("mp_m_freemode_01"), but qb-multicharacter runs tonumber(model) and
+        -- falls back to a RANDOM PED when that fails — so characters created
+        -- before orb-clothing spawn as a random ped. Convert the two freemode
+        -- model names to their numeric joaat hash (the exact value MirrorSkin
+        -- writes for new characters). Idempotent — already-numeric rows are left
+        -- untouched. Runs once per boot.
+        MySQL.update.await("UPDATE playerskins SET model = ? WHERE model = 'mp_m_freemode_01'", { tostring(joaat('mp_m_freemode_01')) })
+        MySQL.update.await("UPDATE playerskins SET model = ? WHERE model = 'mp_f_freemode_01'", { tostring(joaat('mp_f_freemode_01')) })
     end
 
     if Config.Debug then

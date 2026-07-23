@@ -168,24 +168,17 @@ function NUICallbacks.Register()
             return
         end
 
-        RequestModel(modelHash)
-        local timeout = 0
-        while not HasModelLoaded(modelHash) and timeout < 5000 do
-            Wait(10)
-            timeout = timeout + 10
-        end
-
-        if not HasModelLoaded(modelHash) then
+        -- Hardened swap (see SwapPlayerModel in main.lua): refuses to swap onto
+        -- an unstreamed model and waits for the NEW ped handle to settle. The
+        -- old code re-grabbed PlayerPedId() the same frame — under load that's
+        -- the dying ped, so the heading/freeze below landed on a corpse and the
+        -- real new ped came in unfrozen and facing the wrong way.
+        local ped = SwapPlayerModel(modelHash, 8000)
+        if not ped then
             cb({ success = false })
             return
         end
 
-        local ped = PlayerPedId()
-        SetPlayerModel(PlayerId(), modelHash)
-        SetModelAsNoLongerNeeded(modelHash)
-
-        -- Re-grab ped after model change
-        ped = PlayerPedId()
         SetEntityHeading(ped, CameraSystem.lockedHeading or 0.0)
         FreezeEntityPosition(ped, true)
         TaskStandStill(ped, -1)
@@ -273,17 +266,13 @@ function NUICallbacks.Register()
             local model = mapping.values[index + 1]
             if model then
                 local modelHash = GetHashKey(model)
-                RequestModel(modelHash)
-                local timeout = 0
-                while not HasModelLoaded(modelHash) and timeout < 100 do
-                    Wait(10)
-                    timeout = timeout + 1
-                end
-                if HasModelLoaded(modelHash) then
-                    SetPlayerModel(PlayerId(), modelHash)
-                    SetModelAsNoLongerNeeded(modelHash)
-
-                    local newPed = PlayerPedId()
+                -- Hardened swap (see SwapPlayerModel in main.lua). The old code
+                -- here gave the other gender's model ONE second, then blended on
+                -- a possibly-dying ped handle the same frame — clicking the
+                -- male/female heads on a slow client was the single most likely
+                -- trigger for the stretched-polygon character in the creator.
+                local newPed = SwapPlayerModel(modelHash, 8000)
+                if newPed then
                     local heritage = DataCache.GetHeritage() or {
                         mother = 0,
                         father = 0,

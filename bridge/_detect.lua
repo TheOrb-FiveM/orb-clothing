@@ -60,3 +60,44 @@ if IsDuplicityVersion() then
     print('  oxmysql   : ' .. StatusTag(GetResourceState('oxmysql') == 'started' and 'ok' or nil))
     print('^5══════════════════════════════════════════^0')
 end
+
+-- ── Late-start settling ──────────────────────────────────────────────
+-- The snapshot above runs the instant this file loads. If the framework is
+-- ensured AFTER this resource (or was still 'starting' at that instant), we'd
+-- wrongly commit to 'standalone': appearances stop mirroring into playerskins,
+-- and the character-select preview breaks. So a 'standalone' verdict stays
+-- PROVISIONAL for a while: keep re-polling and upgrade the moment the real
+-- framework finishes starting. Consumers branch on Bridge.Framework at call
+-- time, so the upgrade applies everywhere. Bridge.FrameworkSettled gates the
+-- framework-conditional DB migration (the playerskins mirror).
+Bridge.FrameworkSettled = Bridge.Framework ~= 'standalone'
+
+if not Bridge.FrameworkSettled then
+    CreateThread(function()
+        local deadline = GetGameTimer() + 60000
+        while GetGameTimer() < deadline do
+            local found = CheckDependency(frameworks)
+            if found then
+                Bridge.Framework = found
+                if IsDuplicityVersion() then
+                    print(('^3[orb-clothing] Framework detected LATE (%s started after this resource). Recovered automatically — but fix your server.cfg: the framework must be ensured BEFORE orb-clothing.^0'):format(found))
+                end
+                break
+            end
+            Wait(500)
+        end
+        Bridge.FrameworkSettled = true
+    end)
+end
+
+-- The HUD can also finish starting after us; adopt it when it does.
+if not Bridge.HUD then
+    CreateThread(function()
+        local deadline = GetGameTimer() + 60000
+        while GetGameTimer() < deadline do
+            Bridge.HUD = CheckDependency(hudSystems) or false
+            if Bridge.HUD then break end
+            Wait(1000)
+        end
+    end)
+end

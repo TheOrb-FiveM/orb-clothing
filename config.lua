@@ -535,6 +535,28 @@ Config.StoreLocations = Config.TestMode and Config.TestStoreLocations or Config.
 Config.AdminPermission = 'admin'              -- qbx_core permission group required
 Config.AdminStoreFile  = 'data/admin_stores.json'
 
+-- ── Import from another clothing script ─────────────────────────────────
+-- If you're switching TO orb-clothing from qb-clothing or qs-appearance, orb can
+-- import every player's saved look (face, body, clothing, props, tattoos) and
+-- their saved outfits into its own tables. It only READS the other script's
+-- tables — nothing there is deleted or edited.
+--
+-- Manual, anytime (admin command, always available):
+--     /migrateclothing            → dry run, reports what it would import
+--     /migrateclothing confirm     → import (skips players who already have an
+--                                    orb look; add `overwrite` to replace them)
+--     /migrateqb  /  /migrateqs    → same, but pinned to one source format
+--
+-- Automatic on resource start (this setting). Idempotent: only players WITHOUT an
+-- orb look are touched, so it self-completes and leaving it on costs nothing after
+-- the first run. Recommended flow: run the dry-run command once, eyeball it, then
+-- switch this on (or just run `confirm` manually).
+--     'off'  (default) — never auto-import; use the command when you're ready
+--     'qb'             — auto-import qb-clothing rows on start
+--     'qs'             — auto-import qs-appearance rows on start
+--     'auto'           — auto-import whichever of the two each row looks like
+Config.AutoImport = 'off'
+
 -- ═══════════════════════════════════════════════════════════════════════
 --                        UTILITY FUNCTIONS
 -- ═══════════════════════════════════════════════════════════════════════

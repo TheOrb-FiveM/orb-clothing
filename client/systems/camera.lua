@@ -34,12 +34,57 @@ local PAN_MIN_OFFSET = -0.6  -- metres below the preset (toward feet)
 local PAN_MAX_OFFSET =  0.8  -- metres above the preset (toward head)
 local PAN_STEP       =  0.04 -- metres per drag tick (matches rotation DRAG_THRESHOLD feel)
 
+-- ── Wall / prop collision avoidance ──────────────────────────────────────
+-- The camera sits a fixed distance in front of the ped. In a tight interior that
+-- can land it inside — or behind — a wall or prop. Streaming already stays put
+-- (the creator focuses the ped, see main.lua), but the SHOT still looks wrong from
+-- inside a wall, so we pull the lens in to just short of anything between the ped
+-- and the desired camera spot.
+
+local CAM_COLLISION_MARGIN = 0.25   -- metres to keep the lens off the surface
+local CAM_MIN_DISTANCE     = 0.5    -- never frame the subject closer than this
+
+-- Pure: origin (at the ped), the desired camera point, and where the ray hit a
+-- surface → where the camera should actually sit. Pulled in short of the wall but
+-- never past a minimum framing distance, and never PAST the desired point.
+local function PullInFromHit(fromCoords, toCoords, hitCoords)
+    local dir  = toCoords - fromCoords
+    local dist = #dir
+    if dist < 0.001 then return toCoords end
+    local nrm     = dir / dist
+    local hitDist = #(hitCoords - fromCoords)
+    local newDist = hitDist - CAM_COLLISION_MARGIN
+    if newDist >= dist then return toCoords end     -- hit is beyond the camera: fine
+    if newDist < CAM_MIN_DISTANCE then newDist = CAM_MIN_DISTANCE end
+    return fromCoords + (nrm * newDist)
+end
+CameraSystem._PullInFromHit = PullInFromHit  -- exposed for tests
+
+-- Cast from the look-at point (on the ped) to the desired camera spot; if a wall
+-- or prop is in the way, return a pulled-in position. Ignores the subject ped.
+local function ClampToCollision(fromCoords, toCoords)
+    local ignore = CameraSystem.subjectPed or PlayerPedId()
+    -- flags: 1 = world/map, 16 = objects/props (NOT peds or vehicles).
+    local handle = StartExpensiveSynchronousShapeTestLosProbe(
+        fromCoords.x, fromCoords.y, fromCoords.z,
+        toCoords.x,   toCoords.y,   toCoords.z,
+        1 + 16, ignore, 4)
+    local _, hit, hitCoords = GetShapeTestResult(handle)
+    if hit and hit ~= 0 then
+        return PullInFromHit(fromCoords, toCoords, vector3(hitCoords.x, hitCoords.y, hitCoords.z))
+    end
+    return toCoords
+end
+
 function CameraSystem.Create(ped)
     if not DoesEntityExist(ped) then
         return false
     end
 
     CameraSystem.Destroy()
+
+    -- Ped the camera frames — used to ignore it in collision probes.
+    CameraSystem.subjectPed = ped
 
     -- Lock the ped's position and heading at creation so all subsequent
     -- SetPosition calls use the same angle
@@ -99,6 +144,10 @@ end
 
 local function ApplyCameraPosition(position, anchorCoords, anchorHeading, smooth)
     local camCoords, pointAtCoords = ComputeCameraCoords(position, anchorCoords, anchorHeading)
+
+    -- Keep the lens out of walls/props between the ped and the desired spot.
+    camCoords = ClampToCollision(pointAtCoords, camCoords)
+
     local fov = Config.Camera.DefaultFov
 
     -- Reset any user zoom when switching presets — each camera position is
@@ -184,6 +233,7 @@ function CameraSystem.Destroy()
         CameraSystem.activeCamera  = nil
         CameraSystem.lockedCoords  = nil
         CameraSystem.lockedHeading = nil
+        CameraSystem.subjectPed    = nil
 
         if Config.Debug then
             print('[CameraSystem] Camera destroyed')
@@ -239,7 +289,9 @@ function CameraSystem.AdjustVerticalPan(delta)
 
     local bc = CameraSystem.baseCoords
     local bp = CameraSystem.basePointAt
-    SetCamCoord(CameraSystem.activeCamera, bc.x, bc.y, bc.z + newOffset)
-    PointCamAtCoord(CameraSystem.activeCamera, bp.x, bp.y, bp.z + newOffset)
+    local lookAt = vector3(bp.x, bp.y, bp.z + newOffset)
+    local target = ClampToCollision(lookAt, vector3(bc.x, bc.y, bc.z + newOffset))
+    SetCamCoord(CameraSystem.activeCamera, target.x, target.y, target.z)
+    PointCamAtCoord(CameraSystem.activeCamera, lookAt.x, lookAt.y, lookAt.z)
 end
 

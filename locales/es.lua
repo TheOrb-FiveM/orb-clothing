@@ -60,6 +60,7 @@ local L_es = {
     ['tattoo_add'] = "AÑADIR",
     ['tattoo_remove'] = "QUITAR",
     ['card_variant'] = "variante",
+    ['jump_to_tip'] = "Escribí un número y Enter para saltar a ese ítem",
     ['custom_ped'] = "Ped Personalizado",
     ['ped_models_count'] = "%d modelos",
 
@@ -196,6 +197,8 @@ local L_es = {
     ['admin_label_ph'] = "Nombre de la tienda...",
     ['admin_job_lock'] = "Restricción de Trabajo",
     ['admin_job_lock_ph'] = "Vacío para ninguno...",
+    ['admin_show_blip'] = "Mostrar Blip en el Mapa",
+    ['admin_show_blip_hint'] = "Mostrar esta tienda en el mapa",
     ['admin_delete'] = "ELIMINAR",
     ['admin_save_store'] = "GUARDAR TIENDA",
     ['admin_create_store'] = "CREAR TIENDA",
@@ -243,6 +246,22 @@ local L_es = {
     ['tattoo_search_ph'] = "Buscar tatuajes...",
     ['tattoo_no_results'] = "Ningún tatuaje coincide con tu búsqueda.",
     ['tattoo_active_count'] = "%d activos",
+
+    -- ── Comando admin /migrateqs ─────────────────────────────────────
+    ['qs_migrate_title'] = "Migración QS",
+    ['qs_migrate_no_perm'] = "No tenés permiso para usar este comando.",
+    ['qs_migrate_no_table'] = "No se encontró la tabla `playerskins` de qs-appearance — nada para migrar.",
+    ['qs_migrate_dry'] = "SIMULACIÓN: %d apariencia(s) y %d outfit(s) listos para importar. Ejecutá el mismo comando con 'confirm' para aplicar.",
+    ['qs_migrate_done'] = "Listo: %d apariencia(s) importadas, %d fallidas, %d outfit(s) importados.",
+
+    -- ── Comando admin /skin ──────────────────────────────────────────
+    ['skin_title'] = "Skin",
+    ['skin_no_perm'] = "No tenés permiso para usar este comando.",
+    ['skin_need_id'] = "Desde la consola tenés que indicar un id de jugador: /skin <id>",
+    ['skin_offline'] = "El jugador %s no está conectado.",
+    ['skin_opened_self'] = "Abriendo la personalización de tu personaje...",
+    ['skin_opened_target'] = "Abriste la personalización del personaje de %s.",
+    ['skin_already_open'] = "El menú de personalización ya está abierto.",
 }
 
 -- Make accessible globally

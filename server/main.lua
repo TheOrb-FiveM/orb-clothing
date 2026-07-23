@@ -5,20 +5,41 @@
 -- ── Routing Buckets ─────────────────────────────────────────────────────
 -- Each player gets their own bucket (using their server id) while in a store
 -- so other players can't see or interfere with them.
+--
+-- These are CALLBACKS, not fire-and-forget net events, on purpose. The client
+-- must be able to WAIT for the bucket swap to actually take effect before it
+-- touches the interior — otherwise the interior pin races the swap and, on slow
+-- machines, the interior never re-streams in the new bucket (see the client's
+-- OpenCreator for the full explanation).
 
-RegisterNetEvent('orb-clothing:server:enterBucket', function()
-    local src = source
-    SetPlayerRoutingBucket(src, src)
+lib.callback.register('orb-clothing:server:enterBucket', function(source)
+    SetPlayerRoutingBucket(source, source)
+    return true
 end)
 
-RegisterNetEvent('orb-clothing:server:exitBucket', function()
-    local src = source
-    SetPlayerRoutingBucket(src, 0)
+lib.callback.register('orb-clothing:server:exitBucket', function(source)
+    SetPlayerRoutingBucket(source, 0)
+    return true
+end)
+
+-- Fire-and-forget reset for cleanup paths (client resource stop) where the
+-- client can't block on a round-trip. Safe to call even if already in bucket 0.
+RegisterNetEvent('orb-clothing:server:resetBucket', function()
+    SetPlayerRoutingBucket(source, 0)
 end)
 
 AddEventHandler('playerDropped', function()
     local src = source
     SetPlayerRoutingBucket(src, 0)
+end)
+
+-- Resource restart with players still mid-creator: pull everyone back to the
+-- default bucket so nobody is stranded alone in a private instance.
+AddEventHandler('onResourceStop', function(res)
+    if GetCurrentResourceName() ~= res then return end
+    for _, pid in ipairs(GetPlayers()) do
+        SetPlayerRoutingBucket(tonumber(pid), 0)
+    end
 end)
 
 -- Shallow-merge: copy all keys from `src` into `dst`, overwriting conflicts.

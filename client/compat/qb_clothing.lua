@@ -12,14 +12,22 @@
 
 if not (Config.CompatMode and Config.CompatMode.qbClothing) then return end
 
--- Refuse to register if another qb-clothing-compatible resource is still
--- running — would create double event handlers and unpredictable behavior.
+-- Warn if a SEPARATE clothing/appearance resource is still running alongside us
+-- — two clothing systems (and/or duplicate qb-clothing event handlers) cause
+-- unpredictable behavior.
+--
+-- We intentionally do NOT check 'qb-clothing' here: orb-clothing declares
+-- `provides { 'qb-clothing' }`, so GetResourceState('qb-clothing') always
+-- reports 'started' (this resource is providing the alias) — checking it would
+-- print a false "qb-clothing is also started" even on a clean install. We only
+-- check REAL resource folders that we do not provide, so the state is reliable.
 CreateThread(function()
     Wait(500) -- let other resources finish starting
-    local conflicts = { 'qb-clothing', 'rcore_clothes' }
+    local selfName = GetCurrentResourceName()
+    local conflicts = { 'rcore_clothes', 'illenium-appearance', 'fivem-appearance', 'qb-clothes' }
     for _, name in ipairs(conflicts) do
-        if GetResourceState(name) == 'started' and name ~= GetCurrentResourceName() then
-            print(('^3[orb-clothing] qb-clothing compat mode is ON but "%s" is also started. Stop it to avoid duplicate event handlers.^7'):format(name))
+        if name ~= selfName and GetResourceState(name) == 'started' then
+            print(('^3[orb-clothing] Compat mode is ON and "%s" is also running — stop it to avoid two clothing systems / duplicate event handlers.^7'):format(name))
         end
     end
 end)

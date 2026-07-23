@@ -60,6 +60,7 @@ local L_en = {
     ['tattoo_add'] = "ADD",
     ['tattoo_remove'] = "REMOVE",
     ['card_variant'] = "variant",
+    ['jump_to_tip'] = "Type a number and press Enter to jump to that item",
     ['custom_ped'] = "Custom Ped",
     ['ped_models_count'] = "%d models",
 
@@ -196,6 +197,8 @@ local L_en = {
     ['admin_label_ph'] = "Store name...",
     ['admin_job_lock'] = "Job Lock",
     ['admin_job_lock_ph'] = "Leave empty for none...",
+    ['admin_show_blip'] = "Show Map Blip",
+    ['admin_show_blip_hint'] = "Show this store on the map",
     ['admin_delete'] = "DELETE",
     ['admin_save_store'] = "SAVE STORE",
     ['admin_create_store'] = "CREATE STORE",
@@ -243,6 +246,22 @@ local L_en = {
     ['tattoo_search_ph'] = "Search tattoos...",
     ['tattoo_no_results'] = "No tattoos match your search.",
     ['tattoo_active_count'] = "%d active",
+
+    -- ── /migrateqs admin command ─────────────────────────────────────
+    ['qs_migrate_title'] = "QS Migration",
+    ['qs_migrate_no_perm'] = "You don't have permission to use this command.",
+    ['qs_migrate_no_table'] = "No qs-appearance `playerskins` table found — nothing to migrate.",
+    ['qs_migrate_dry'] = "DRY RUN: %d appearance(s) and %d outfit(s) ready to import. Run the same command with 'confirm' to apply.",
+    ['qs_migrate_done'] = "Done: %d appearance(s) imported, %d failed, %d outfit(s) imported.",
+
+    -- ── /skin admin command ──────────────────────────────────────────
+    ['skin_title'] = "Skin",
+    ['skin_no_perm'] = "You don't have permission to use this command.",
+    ['skin_need_id'] = "From console you must specify a player id: /skin <id>",
+    ['skin_offline'] = "Player %s is not online.",
+    ['skin_opened_self'] = "Opening your character customization...",
+    ['skin_opened_target'] = "Opened character customization for %s.",
+    ['skin_already_open'] = "The customization menu is already open.",
 }
 
 -- Make accessible globally

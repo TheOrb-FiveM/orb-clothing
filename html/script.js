@@ -891,7 +891,124 @@ function createItemSection(title, sectionId, itemCount, hiddenItems, cappedGrid)
     content.appendChild(grid);
     section.appendChild(header);
     section.appendChild(content);
+
+    // Jump-to-number box in the header — type an item number, press Enter, and the
+    // panel scrolls to it and selects it. Only shown when the grid is long enough
+    // to be worth scrolling (`displayNum` is the visible-card count after the loop).
+    if (displayNum >= 10) {
+        header.appendChild(buildJumpControl(sectionId, content, displayNum));
+    }
+
     return section;
+}
+
+// The 1-based position of the card whose drawable index is `index` (accounts for
+// hidden items, which are skipped in the grid). null if not present.
+function displayNumForIndex(content, index) {
+    const cards = content.querySelectorAll('.item-card');
+    for (let p = 0; p < cards.length; p++) {
+        if (parseInt(cards[p].dataset.index, 10) === index) return p + 1;
+    }
+    return null;
+}
+
+// Smoothly scroll a container to a target scrollTop. We animate it ourselves
+// (rAF, easeInOutQuad) instead of scrollIntoView/scrollTo({behavior:'smooth'}),
+// which is unreliable in FiveM's CEF — that's why the jump wasn't moving the view.
+function smoothScrollTo(el, targetTop, duration) {
+    const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+    targetTop = Math.max(0, Math.min(targetTop, maxTop));
+    const start = el.scrollTop;
+    const dist = targetTop - start;
+    if (Math.abs(dist) < 1) { el.scrollTop = targetTop; return; }
+    duration = duration || 260;
+    let startTs = null;
+    function step(ts) {
+        if (startTs === null) startTs = ts;
+        const p = Math.min(1, (ts - startTs) / duration);
+        const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        el.scrollTop = start + dist * eased;
+        if (p < 1) requestAnimationFrame(step); else el.scrollTop = targetTop;
+    }
+    requestAnimationFrame(step);
+}
+
+// The element that ACTUALLY scrolls around `el`. Mirrors the wheel handler in
+// setupEventListeners exactly: depending on the category the real scroll box is
+// the items-grid, the tattoo/outfit list, OR the options panel — so we can't
+// hardcode one. Walk up to the first ancestor that is overflow auto/scroll AND
+// genuinely overflowing.
+function getScrollParent(el) {
+    let node = el.parentElement;
+    while (node) {
+        const oy = getComputedStyle(node).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && node.scrollHeight > node.clientHeight + 1) {
+            return node;
+        }
+        node = node.parentElement;
+    }
+    return null;
+}
+
+// Scroll to the card at 1-based position `displayNum` and select it.
+function jumpToItem(sectionId, displayNum) {
+    const content = document.getElementById('content-' + sectionId);
+    if (!content) return;
+    const cards = content.querySelectorAll('.item-card');
+    if (!cards.length) return;
+    let n = Math.round(displayNum);
+    if (isNaN(n)) return;
+    n = Math.max(1, Math.min(cards.length, n));
+    const card = cards[n - 1];
+    selectItem(sectionId, parseInt(card.dataset.index, 10));
+
+    // Center the card in whatever container actually scrolls. Compute the target
+    // scrollTop from the rects (robust to nesting) instead of scrollIntoView,
+    // which doesn't reliably move the view in FiveM's CEF.
+    const scroller = getScrollParent(card) || document.getElementById('optionsPanel');
+    if (scroller) {
+        const cardRect = card.getBoundingClientRect();
+        const sRect = scroller.getBoundingClientRect();
+        const target = scroller.scrollTop + (cardRect.top - sRect.top)
+            - (scroller.clientHeight / 2) + (cardRect.height / 2);
+        smoothScrollTo(scroller, target);
+    }
+}
+
+// Builds the little "# / total" jump control for a section header.
+function buildJumpControl(sectionId, content, total) {
+    const wrap = document.createElement('div');
+    wrap.className = 'section-jump';
+    wrap.title = t('jump_to_tip', 'Type a number and press Enter to jump to that item');
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'section-jump-input';
+    input.min = '1';
+    input.max = String(total);
+    input.placeholder = '#';
+    const cur = displayNumForIndex(content, state.selections[sectionId] || 0);
+    if (cur) input.value = String(cur);
+
+    const totalEl = document.createElement('span');
+    totalEl.className = 'section-jump-total';
+    totalEl.textContent = '/ ' + total;
+
+    const doJump = () => {
+        const v = parseInt(input.value, 10);
+        if (!isNaN(v)) jumpToItem(sectionId, v);
+    };
+    // stopPropagation so digits/Enter go to the input, not any global keybind.
+    input.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); doJump(); input.blur(); }
+    });
+    input.addEventListener('change', doJump);
+    input.addEventListener('click', (e) => e.stopPropagation());
+
+    wrap.appendChild(input);
+    wrap.appendChild(totalEl);
+    return wrap;
 }
 
 // ── Custom Ped Selector ─────────────────────────────────────────────
@@ -1578,6 +1695,14 @@ function selectItem(sectionId, index) {
     items.forEach(item => item.classList.remove('active'));
     const target = content.querySelector(`.item-card[data-index="${index}"]`);
     if (target) target.classList.add('active');
+
+    // Keep the header's jump box showing the current position (unless the user is
+    // typing in it).
+    const jinput = content.parentElement && content.parentElement.querySelector('.section-jump-input');
+    if (jinput && document.activeElement !== jinput) {
+        const pos = displayNumForIndex(content, index);
+        if (pos) jinput.value = String(pos);
+    }
     // Apply gameOffset for props where UI index 0 = "remove" (sends -1 to Lua)
     const mapping = IMAGE_MAPPING[sectionId];
     const gameIndex = index + (mapping && mapping.gameOffset ? mapping.gameOffset : 0);
@@ -2107,6 +2232,12 @@ function showGenericConfirm(title, subtitle, actionLabel, onConfirm) {
 }
 
 function saveCharacter() {
+    // Always persist the current gender. Without this, a character whose gender
+    // was never explicitly clicked saved no identity_gender, so on spawn
+    // orb-clothing couldn't restore the freemode model and the player appeared as
+    // a random ped (0 = male, 1 = female).
+    state.selections['identity_gender'] = (currentGender === 'female') ? 1 : 0;
+
     // Build list of changed subcategory IDs for server-side pricing
     const changes = pricingData ? getChangedItems() : [];
     const changedItems = changes.map(c => c.id);
@@ -2347,7 +2478,7 @@ window.addEventListener('message', (event) => {
             adminShowPanel();
             break;
         case 'adminStoresSynced':
-            adminSyncStores(data.stores);
+            adminSyncStores(data.stores, data.savedId);
             break;
     }
 });
@@ -2372,7 +2503,8 @@ let adminState = {
         size: { x: 14.0, y: 10.0 },
         cameraPreset: 'full',
         label: '',
-        jobLock: ''
+        jobLock: '',
+        showBlip: true
     }
 };
 
@@ -2381,7 +2513,7 @@ let adminState = {
 let adminOverlay, adminStoreList, adminEditor;
 let adminTypeGrid, adminCameraGrid;
 let adminWidthEl, adminLengthEl;
-let adminLabelEl, adminJobLockEl;
+let adminLabelEl, adminJobLockEl, adminBlipToggleEl;
 let adminDeleteBtn, adminSaveBtn;
 let adminConfirmOverlay;
 let zoneXEl, zoneYEl, zoneZEl, zoneWEl;
@@ -2397,6 +2529,7 @@ function adminInit() {
     adminLengthEl = document.getElementById('adminLength');
     adminLabelEl = document.getElementById('adminLabel');
     adminJobLockEl = document.getElementById('adminJobLock');
+    adminBlipToggleEl = document.getElementById('adminBlipToggle');
     adminDeleteBtn = document.getElementById('adminDeleteBtn');
     adminSaveBtn = document.getElementById('adminSaveBtn');
     adminConfirmOverlay = document.getElementById('adminConfirmOverlay');
@@ -2435,6 +2568,16 @@ function adminInit() {
         if (!card) return;
         adminState.editor.cameraPreset = card.dataset.preset;
         adminRenderCameraCards();
+    });
+
+    // Blip visibility toggle (click or keyboard)
+    const toggleBlip = () => {
+        adminState.editor.showBlip = !adminState.editor.showBlip;
+        adminRenderBlipToggle();
+    };
+    adminBlipToggleEl.addEventListener('click', toggleBlip);
+    adminBlipToggleEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBlip(); }
     });
 
     // Size +/- buttons
@@ -2500,7 +2643,8 @@ function adminInit() {
             size: adminState.editor.size,
             cameraPreset: adminState.editor.cameraPreset,
             label: adminLabelEl.value.trim() || null,
-            jobLock: adminJobLockEl.value.trim() || null
+            jobLock: adminJobLockEl.value.trim() || null,
+            showBlip: adminState.editor.showBlip !== false
         };
 
         if (adminState.selectedId) {
@@ -2568,11 +2712,23 @@ function adminShowPanel() {
 
 // ── Sync stores after save/delete ──
 
-function adminSyncStores(stores) {
+function adminSyncStores(stores, savedId) {
     adminState.stores = stores || [];
-    // If editing a store that was just saved, find it and keep selection
+
+    // A just-saved store (create OR update) should stay selected in the editor so
+    // the button reads SAVE STORE and the next save updates it — never duplicates.
+    if (savedId) {
+        const saved = adminState.stores.find(s => s.id === savedId);
+        if (saved) {
+            adminLoadStore(saved);   // sets selectedId, button = SAVE STORE, syncs fields
+            return;                  // adminLoadStore already re-renders the sidebar
+        }
+    }
+
+    // Otherwise: if the store we were editing vanished (deleted elsewhere), drop
+    // back to "new" mode. If it still exists, keep the current selection.
     if (adminState.selectedId) {
-        const stillExists = stores.find(s => s.id === adminState.selectedId);
+        const stillExists = adminState.stores.find(s => s.id === adminState.selectedId);
         if (!stillExists) {
             adminState.selectedId = null;
             adminResetEditor();
@@ -2610,12 +2766,14 @@ function adminResetEditor() {
         size: { x: 14.0, y: 10.0 },
         cameraPreset: 'full',
         label: '',
-        jobLock: ''
+        jobLock: '',
+        showBlip: true
     };
 
     // Update DOM
     adminRenderTypeCards();
     adminRenderCameraCards();
+    adminRenderBlipToggle();
     adminWidthEl.textContent = '14.0';
     adminLengthEl.textContent = '10.0';
     zoneXEl.textContent = '---';
@@ -2643,11 +2801,13 @@ function adminLoadStore(store) {
         size: store.size ? { x: store.size.x, y: store.size.y } : { x: 14.0, y: 10.0 },
         cameraPreset: store.cameraPreset || 'full',
         label: store.label || '',
-        jobLock: store.jobLock || ''
+        jobLock: store.jobLock || '',
+        showBlip: store.showBlip !== false
     };
 
     adminRenderTypeCards();
     adminRenderCameraCards();
+    adminRenderBlipToggle();
     adminWidthEl.textContent = adminState.editor.size.x.toFixed(1);
     adminLengthEl.textContent = adminState.editor.size.y.toFixed(1);
 
@@ -2692,6 +2852,14 @@ function adminRenderCameraCards() {
     adminCameraGrid.querySelectorAll('.admin-camera-card').forEach(card => {
         card.classList.toggle('active', card.dataset.preset === adminState.editor.cameraPreset);
     });
+}
+
+// ── Render blip toggle ──
+
+function adminRenderBlipToggle() {
+    if (!adminBlipToggleEl) return;
+    const on = adminState.editor.showBlip !== false;
+    adminBlipToggleEl.setAttribute('aria-checked', on ? 'true' : 'false');
 }
 
 // ── Render sidebar ──

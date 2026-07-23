@@ -9,6 +9,11 @@ function CreateStoreBlips()
         local storeType = Config.StoreTypes[store.type]
         if not storeType then goto continue end
 
+        -- Per-store blip toggle (set in /storeadmin). Absent/true = show; only an
+        -- explicit false hides it, so stores created before this option keep their
+        -- blip.
+        if store.showBlip == false then goto continue end
+
         local blipCfg = storeType.blip
         local blip = AddBlipForCoord(store.coords.x, store.coords.y, store.coords.z)
 

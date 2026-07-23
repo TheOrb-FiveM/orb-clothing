@@ -451,6 +451,115 @@ local function StandFromBarberChair(ped)
     isSeatedInChair = false
 end
 
+-- ── Transition helpers (bulletproof store entry/exit) ─────────────────────
+-- The whole reason these exist: entering a store swaps the player into a private
+-- routing bucket, and a bucket swap re-instances the ENTIRE world around the ped
+-- (interior, props, peds all unload and re-stream). Two things made that ugly and
+-- fragile:
+--   1. It was never hidden behind a fade, so the player saw the world flash out
+--      and back in ("it kicks me out of the store and puts everything back").
+--   2. The bucket swap was fire-and-forget while the interior pin ran synchronously
+--      right after — so the pin happened in the OLD bucket, on a handle that does
+--      not survive the swap. On slow machines the interior then never re-streamed
+--      in the new bucket, and re-entering left it permanently unloaded.
+-- The fix: fade to black FIRST, wait for the bucket swap to actually land, THEN do
+-- all interior/collision streaming in the new bucket, and only fade back in once
+-- the world is genuinely ready. The player never sees the churn.
+
+-- ── Fade timing (tune here) ───────────────────────────────────────────────
+-- The fade must outlast the WHOLE load, not just the teleport. If the screen
+-- brightens while the interior/ped/UI are still settling you see the pop-in — so
+-- FADE_SETTLE_MS holds the screen black AFTER everything reports ready, giving the
+-- engine time to finish streaming textures and the NUI time to paint, before the
+-- fade-in even starts.
+local FADE_OUT_MS    = 500   -- fade-to-black duration
+local FADE_IN_MS     = 600   -- fade-from-black duration
+local FADE_SETTLE_MS = 700   -- black hold after load completes, before fade-in
+
+-- Fade to black and BLOCK until the screen is actually black (with a hard ceiling
+-- so a stuck fade can never hang the open).
+local function TransitionFadeOut(ms)
+    ms = ms or FADE_OUT_MS
+    if not IsScreenFadedOut() then
+        DoScreenFadeOut(ms)
+    end
+    local deadline = GetGameTimer() + ms + 800
+    while not IsScreenFadedOut() and GetGameTimer() < deadline do
+        Wait(0)
+    end
+end
+
+local function TransitionFadeIn(ms)
+    ms = ms or FADE_IN_MS
+    DoScreenFadeIn(ms)
+end
+
+-- Bulletproofing: whatever happens between fade-out and fade-in, the player must
+-- never be left staring at a black screen. Arm this right after fading out; it
+-- self-cancels the instant a normal fade-in happens, and force-clears the fade if
+-- the open/close somehow never reaches its own fade-in within a generous window.
+local function ArmFadeFailsafe()
+    CreateThread(function()
+        local deadline = GetGameTimer() + 15000
+        while GetGameTimer() < deadline do
+            -- Screen is no longer black and not mid fade-out → a fade-in ran. Done.
+            if not IsScreenFadedOut() and not IsScreenFadingOut() then return end
+            Wait(250)
+        end
+        if IsScreenFadedOut() then DoScreenFadeIn(FADE_IN_MS) end
+    end)
+end
+
+-- Ask the server to move us into (enter=true) or out of (enter=false) our private
+-- bucket, and WAIT for it to land. Returns true on confirmation. On timeout we
+-- return false but still proceed — opening the creator in the shared world beats
+-- hanging the player on a black screen forever.
+local function SetBucketSync(enter)
+    local ok = lib.callback.await(
+        enter and 'orb-clothing:server:enterBucket' or 'orb-clothing:server:exitBucket',
+        5000
+    )
+    -- Give the engine a moment to begin re-instancing the world in the new bucket
+    -- before we start streaming the interior into it.
+    if ok then Wait(150) end
+    return ok == true
+end
+
+-- Begin streaming collision + a load-scene at `coords`. Call BEFORE teleporting
+-- the ped in, so the destination is already coming into memory in the new bucket.
+local function BeginStreamAt(coords)
+    RequestCollisionAtCoord(coords.x, coords.y, coords.z)
+    NewLoadSceneStart(coords.x, coords.y, coords.z, 0.0, 0.0, 0.0, 20.0, 0)
+end
+
+-- Block (bounded) until the interior + collision at `coords` are genuinely ready,
+-- pinning the interior so the bucket it lives in can't drop it. Call AFTER the
+-- teleport. Returns the pinned interior id (or nil). We only fade back in once
+-- this returns, so on a slow machine the black screen simply lasts a little
+-- longer instead of revealing an empty shell.
+local function AwaitWorldReady(coords)
+    local interiorId = GetInteriorAtCoords(coords.x, coords.y, coords.z)
+    if interiorId and interiorId ~= 0 then
+        LoadInterior(interiorId)
+        PinInteriorInMemory(interiorId)
+        local waited = 0
+        while not IsInteriorReady(interiorId) and waited < 3000 do
+            Wait(50)
+            waited = waited + 50
+        end
+    end
+
+    -- Let collision settle so the ped never lands in ungrounded/void space.
+    local waited = 0
+    while not HasCollisionLoadedAroundEntity(PlayerPedId()) and waited < 1500 do
+        Wait(50)
+        waited = waited + 50
+    end
+
+    if IsNewLoadSceneActive() then NewLoadSceneStop() end
+    return (interiorId and interiorId ~= 0) and interiorId or nil
+end
+
 -- ── Creator open/close ───────────────────────────────────────────────────
 
 local function OpenCreator(appearanceData, storeContext)
@@ -462,11 +571,14 @@ local function OpenCreator(appearanceData, storeContext)
     activeStoreContext = storeContext  -- may be nil for /tc
     wasSaved = false
 
-    -- Move player to their own routing bucket so others can't interfere
-    -- Skip for barber shops — routing bucket unloads the interior
-    if not (storeContext and storeContext.chair) then
-        TriggerServerEvent('orb-clothing:server:enterBucket')
-    end
+    local isBarberChair = storeContext and storeContext.chair
+
+    -- Fade to black BEFORE anything moves. Everything below — the bucket swap, the
+    -- teleport, the world re-stream — happens behind this, so the player never sees
+    -- the churn. Barber chairs keep their interior (they skip the bucket) but still
+    -- fade, so every store entry looks the same and the camera cut is hidden.
+    TransitionFadeOut(350)
+    ArmFadeFailsafe()
 
     -- Hide HUD and minimap
     Bridge.HideHUD()
@@ -482,43 +594,41 @@ local function OpenCreator(appearanceData, storeContext)
     -- Snapshot the full ped appearance BEFORE any changes so we can revert on cancel
     appearanceSnapshot = TakeAppearanceSnapshot(playerPed)
 
+    -- Move into our private bucket and WAIT for the swap to actually land before
+    -- touching the world. Skip for barber shops — the swap unloads their interior.
+    if not isBarberChair then
+        SetBucketSync(true)
+    end
+
     -- Teleport ped to the store's pedPosition so the camera frames them correctly.
     -- Skip for barber chairs — SeatInBarberChair handles positioning.
-    if storeContext and storeContext.pedPosition and not storeContext.chair then
+    if storeContext and storeContext.pedPosition and not isBarberChair then
         local pp = storeContext.pedPosition
 
-        -- Force-stream collision + interior at the target coords BEFORE teleporting.
-        -- Without this, stores whose pedPosition falls inside a GTA interior shell
-        -- spawn the player into empty/ungrounded space because the interior hasn't
-        -- been streamed in (map streaming only triggers at entry points, not teleports).
-        RequestCollisionAtCoord(pp.x, pp.y, pp.z)
-        NewLoadSceneStart(pp.x, pp.y, pp.z, 0.0, 0.0, 0.0, 20.0, 0)
+        -- Pre-stream the destination, teleport in, THEN block until the interior +
+        -- collision are ready. This whole sequence now runs INSIDE the new bucket
+        -- (after SetBucketSync), so the interior pin lands in the live instance and
+        -- survives — the old code pinned in the doomed pre-swap bucket, which is why
+        -- slow machines lost the interior on re-entry.
+        BeginStreamAt(pp)
 
         SetEntityCoordsNoOffset(creatorPed, pp.x, pp.y, pp.z, false, false, false)
         SetEntityHeading(creatorPed, pp.w)
         FreezeEntityPosition(creatorPed, true)
 
-        -- Pin the interior if the pedPosition is inside one, so it doesn't
-        -- unload during the routing-bucket swap on enterBucket.
-        local interiorId = GetInteriorAtCoords(pp.x, pp.y, pp.z)
-        if interiorId and interiorId ~= 0 then
-            LoadInterior(interiorId)
-            PinInteriorInMemory(interiorId)
-            local waited = 0
-            while not IsInteriorReady(interiorId) and waited < 2000 do
-                Wait(50)
-                waited = waited + 50
-            end
-            pinnedInterior = interiorId
-        end
-
-        if IsNewLoadSceneActive() then NewLoadSceneStop() end
-        Wait(50)
+        pinnedInterior = AwaitWorldReady(pp)
     end
     CameraSystem.ClearAnchor()
 
+    -- Anchor world/interior streaming to the PED, not the camera. With a scripted
+    -- cam active the engine streams around the camera by default — so when a preset
+    -- placed the cam behind a wall, the game decided "you're outside the interior"
+    -- and unloaded it, dropping the ped into the void. Focusing the ped keeps the
+    -- interior loaded no matter where the camera ends up. Follows the ped, so it
+    -- also covers the barber sitting down. Cleared in CloseCreator.
+    SetFocusEntity(creatorPed)
+
     -- Skip initial camera for barber chairs — CreateBarberCamera handles it after sitting
-    local isBarberChair = storeContext and storeContext.chair
     if not isBarberChair then
         CameraSystem.Create(creatorPed)
     end
@@ -661,10 +771,20 @@ local function OpenCreator(appearanceData, storeContext)
         }
     end
 
+    isCreatorOpen = true
+
+    -- Hold the screen black while the world finishes settling. The UI is NOT shown
+    -- yet: the NUI layer draws ON TOP of the fade, so sending it here would pop the
+    -- menu up over the black screen well before the world is revealed. Keep it back.
+    Wait(FADE_SETTLE_MS)
+
+    -- Now — with the scene ready and still black — reveal the UI and the world
+    -- together. The menu paints one frame, then the fade-in brings the world up
+    -- behind it, so the UI appears WITH the fade, not ahead of it.
     SetNuiFocus(true, true)
     SendNUIMessage(msg)
-
-    isCreatorOpen = true
+    Wait(0)   -- hand the NUI a frame to paint before the reveal
+    TransitionFadeIn()
 
     DebugPrint('Creator opened' .. (storeContext and (' [' .. storeContext.storeType .. ']') or ' [/tc]'))
 end
@@ -676,6 +796,11 @@ local function CloseCreator()
 
     isClosing = true
     DebugPrint('Closing creator...')
+
+    -- Fade to black first: leaving the store swaps us back to bucket 0, which
+    -- re-instances the world again. Same churn as entry — hide it the same way.
+    TransitionFadeOut(350)
+    ArmFadeFailsafe()
 
     -- Clean up scene effects (DOF blur + light)
     CameraSystem.dofActive = false
@@ -768,14 +893,28 @@ local function CloseCreator()
     end
     tattooClothingSnapshot = nil
 
-    -- Unpin interior if we pinned one for the barber
+    -- Unpin the interior we pinned on entry (barber or clothing store alike).
     if pinnedInterior then
         UnpinBarberInterior(pinnedInterior)
         pinnedInterior = nil
     end
 
-    -- Return player to the default routing bucket
-    TriggerServerEvent('orb-clothing:server:exitBucket')
+    -- Hand world streaming back to the gameplay camera (was focused on the ped
+    -- while the creator was open so the interior couldn't unload).
+    ClearFocus()
+
+    -- Return to the default bucket and WAIT for it to land, so the shared world is
+    -- re-instancing before — not after — we fade back in. Then force collision to
+    -- stream at the spot we dropped the ped so they never surface into the void.
+    local backOk = SetBucketSync(false)
+    if backOk and originalCoords then
+        RequestCollisionAtCoord(originalCoords.x, originalCoords.y, originalCoords.z)
+        local waited = 0
+        while not HasCollisionLoadedAroundEntity(PlayerPedId()) and waited < 1500 do
+            Wait(50)
+            waited = waited + 50
+        end
+    end
 
     appearanceSnapshot = nil
     activeStoreContext = nil
@@ -785,6 +924,10 @@ local function CloseCreator()
     wasSaved           = false
     isSeatedInChair    = false
 
+    -- Hold black a moment so the restored world finishes streaming, then reveal it.
+    Wait(FADE_SETTLE_MS)
+    TransitionFadeIn()
+
     DebugPrint('Creator closed')
 end
 
@@ -793,6 +936,17 @@ end
 -- Fired by interaction.lua when player enters a store and presses E
 AddEventHandler('orb-clothing:client:openCreator', function(storeContext)
     OpenCreator(nil, storeContext)
+end)
+
+-- Admin /skin: the SERVER validates the caller and targets us, then fires this.
+-- Opens the FULL creator (no store context → every tab, no pricing, no proximity
+-- check). Guarded so it can't stack on top of an already-open creator.
+RegisterNetEvent('orb-clothing:client:openFullEditor', function()
+    if isCreatorOpen then
+        lib.notify({ title = L('store_title'), description = L('skin_already_open'), type = 'error' })
+        return
+    end
+    OpenCreator(nil, nil)
 end)
 
 -- Net event (from server) and local event (from NUI callbacks via TriggerEvent)
@@ -870,47 +1024,92 @@ RegisterNetEvent('orb-clothing:client:outfitShareInvite', function(info)
     TriggerServerEvent('orb-clothing:server:shareResponse', accepted == 'confirm')
 end)
 
+-- Swap the player onto `modelHash` and hand back the SETTLED new ped.
+-- Two hardenings, both learned from slow/cold machines (the dev box never
+-- reproduces this — a 36fps client with a cold cache always does):
+--
+--   * NEVER call SetPlayerModel with a model that isn't resident. The old
+--     creator path gave the model 2 seconds and then swapped regardless —
+--     that's undefined behaviour, and it's how players ended up invisible or
+--     half-swapped.
+--   * After SetPlayerModel, PlayerPedId() can keep answering with the DYING
+--     ped for a few frames (the swap crosses frames under load). Applying a
+--     head blend or freemode components to that stale handle — or to a ped
+--     that never became freemode — is what exploded characters into the
+--     stretched-polygon monster. Wait until the handle actually wears the
+--     requested model before letting anyone touch it.
+--
+-- Returns the settled ped, or nil if the model never streamed in (the caller
+-- must then SKIP freemode-only work — skipping beats corrupting).
+-- Global on purpose: the creator's NUI callbacks (gender switch, custom-ped
+-- picker) swap models too and need the same protection.
+function SwapPlayerModel(modelHash, budgetMs)
+    RequestModel(modelHash)
+    local deadline = GetGameTimer() + (budgetMs or 15000)
+    while not HasModelLoaded(modelHash) and GetGameTimer() < deadline do
+        RequestModel(modelHash)
+        Wait(10)
+    end
+    if not HasModelLoaded(modelHash) then return nil end
+
+    local before = PlayerPedId()
+    SetPlayerModel(PlayerId(), modelHash)
+    SetModelAsNoLongerNeeded(modelHash)
+
+    local t   = GetGameTimer()
+    local ped = PlayerPedId()
+    while GetGameTimer() - t < 2000 do
+        ped = PlayerPedId()
+        local settled = GetEntityModel(ped) == modelHash
+        -- Same-model refreshes may legitimately keep the handle; give the
+        -- recreate 300ms to show up before trusting a matching old handle.
+        if settled and (ped ~= before or GetGameTimer() - t > 300) then break end
+        Wait(0)
+    end
+    Wait(0)   -- one settled frame before blends/components touch it
+    return PlayerPedId()
+end
+
 -- Triggered by multichar after a new character is created — opens creator in first-time mode
 AddEventHandler('orb-clothing:client:openForNewCharacter', function(gender)
     isFirstTime = true
 
     local isMale    = gender ~= 'female'
     local modelName = isMale and Config.PedModels.Male or Config.PedModels.Female
-    local modelHash = GetHashKey(modelName)
 
-    RequestModel(modelHash)
-    local timeout = 0
-    while not HasModelLoaded(modelHash) and timeout < 200 do
-        Wait(10)
-        timeout = timeout + 1
-    end
-
-    SetPlayerModel(PlayerId(), modelHash)
-    SetModelAsNoLongerNeeded(modelHash)
-
-    local ped = PlayerPedId()
-    SetPedDefaultComponentVariation(ped)
-    SetPedHeadBlendData(ped, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.0, false)
+    local ped = SwapPlayerModel(GetHashKey(modelName))
     DataCache.StoreHeritage({ mother = 0, father = 0, shapeValue = 0.5, colorValue = 0.5 })
 
-    local defaultClothing = isMale and Config.DefaultClothing.male or Config.DefaultClothing.female
-    for componentId, item in pairs(defaultClothing) do
-        SetPedComponentVariation(ped, componentId, item.drawable, item.texture, 2)
-    end
-    local defaultProps = isMale and Config.DefaultProps.male or Config.DefaultProps.female
-    for propId, item in pairs(defaultProps) do
-        if item.drawable == -1 then
-            ClearPedProp(ped, propId)
-        else
-            SetPedPropIndex(ped, propId, item.drawable, item.texture, true)
+    if ped then
+        SetPedDefaultComponentVariation(ped)
+        SetPedHeadBlendData(ped, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.0, false)
+
+        local defaultClothing = isMale and Config.DefaultClothing.male or Config.DefaultClothing.female
+        for componentId, item in pairs(defaultClothing) do
+            SetPedComponentVariation(ped, componentId, item.drawable, item.texture, 2)
         end
+        local defaultProps = isMale and Config.DefaultProps.male or Config.DefaultProps.female
+        for propId, item in pairs(defaultProps) do
+            if item.drawable == -1 then
+                ClearPedProp(ped, propId)
+            else
+                SetPedPropIndex(ped, propId, item.drawable, item.texture, true)
+            end
+        end
+    else
+        -- The freemode model never streamed in (brutally slow client). Opening
+        -- the creator on the wrong ped is survivable; corrupting it is not —
+        -- so we skip the blend/components entirely and say so.
+        print(('^1[orb-clothing] %s never finished streaming — creator opened without the model swap. The player should retry creation.^0'):format(modelName))
     end
 
     SetTimecycleModifier('default')
     SetTimecycleModifierStrength(1.0)
-    DoScreenFadeIn(500)
-    Wait(300)
 
+    -- Stay black and hand straight to OpenCreator, which fades in itself once the
+    -- creator is fully up. Fading in here first would double-flash (in, then
+    -- OpenCreator's own fade-out, then in again). OpenCreator sees the screen is
+    -- already black and skips its fade-out.
     OpenCreator(nil, nil)
 end)
 
@@ -932,12 +1131,52 @@ RegisterNetEvent('orb-clothing:client:creatorSaved', function(success, reason)
     end
 end)
 
--- Restore appearance on character load (auto-detects framework event)
+-- Restore appearance on character load (auto-detects framework event).
+--
+-- The player-loaded event can fire MORE THAN ONCE per spawn: QBCore's own
+-- Player.Login fires QBCore:Client:OnPlayerLoaded, and multicharacter resources
+-- fire it again after teleporting the ped. Running ApplyAppearanceFromState for
+-- each fire in parallel made their SetPlayerModel calls race — the ped could be
+-- left as the random/preview ped (intermittent, worse on the 2nd+ character).
+-- Serialize the spawn apply so only one runs at a time and the latest data wins.
+local spawnApplying = false
+local spawnPending  = nil
+
+local function runSpawnApply(data)
+    if spawnApplying then
+        spawnPending = data       -- a newer load arrived mid-apply; run it next
+        return
+    end
+    spawnApplying = true
+    local ok, err = pcall(ApplyAppearanceFromState, PlayerPedId(), data)
+    spawnApplying = false
+    if not ok then DebugPrint('spawn apply error: ' .. tostring(err)) end
+    if spawnPending then
+        local nextData = spawnPending
+        spawnPending = nil
+        runSpawnApply(nextData)
+    end
+end
+
 Bridge.OnPlayerLoaded(function()
     lib.callback('orb-clothing:server:loadAppearance', false, function(data)
-        if not data then return end
-        local ped = PlayerPedId()
-        ApplyAppearanceFromState(ped, data)
+        if not data then
+            DebugPrint('loadAppearance returned NO DATA (spawn will keep current ped)')
+            return
+        end
+
+        -- Guarantee a gender so the freemode model is ALWAYS applied on spawn.
+        -- Older saves (and any created before the gender was persisted) can lack
+        -- identity_gender; without it STEP 1 was skipped and the player kept the
+        -- random/previous ped. Default to male — this matches what the server
+        -- mirrors into playerskins (and thus the character-select preview), so it
+        -- stays consistent. Re-saving the character persists the real gender.
+        data.selections = data.selections or {}
+        if data.selections['identity_gender'] == nil then
+            data.selections['identity_gender'] = 0
+        end
+
+        runSpawnApply(data)
         DebugPrint('Appearance restored from DB')
     end)
 end)
@@ -957,17 +1196,20 @@ function ApplyAppearanceFromState(ped, data)
             local model = mapping.values[modelSelection + 1]
             if model then
                 local modelHash = GetHashKey(model)
-                RequestModel(modelHash)
-                local timeout = 0
-                while not HasModelLoaded(modelHash) and timeout < 200 do
-                    Wait(10)
-                    timeout = timeout + 1
-                end
-                if HasModelLoaded(modelHash) then
-                    SetPlayerModel(PlayerId(), modelHash)
-                    SetModelAsNoLongerNeeded(modelHash)
-                    ped = PlayerPedId()
-                    SetPedDefaultComponentVariation(ped)
+                if IsModelInCdimage(modelHash) and IsModelValid(modelHash) then
+                    -- Swap via the hardened helper: it refuses to swap onto an
+                    -- unstreamed model AND waits for the NEW ped handle to settle.
+                    -- The old code here grabbed PlayerPedId() the same frame as
+                    -- SetPlayerModel — under load that's the dying ped, and every
+                    -- blend/component below went into the void (headless/default
+                    -- characters on slow clients).
+                    local newPed = SwapPlayerModel(modelHash, 12000)
+                    if newPed then
+                        ped = newPed
+                        SetPedDefaultComponentVariation(ped)
+                    end
+                    -- If the model never streamed we keep the current ped: the
+                    -- loaded-event fires again on the next spawn and retries.
                 end
             end
         end
@@ -1211,11 +1453,15 @@ AddEventHandler('onResourceStop', function(resourceName)
     CameraSystem.Destroy()
     AppearanceSystem.ResetScale()
 
-    -- Ensure player returns to default routing bucket and HUD is restored
+    -- Ensure player returns to default routing bucket and HUD is restored.
+    -- Fire-and-forget here on purpose: the resource is stopping, so we can't block
+    -- on a callback round-trip. The server also force-resets every bucket on stop.
     if isCreatorOpen then
-        TriggerServerEvent('orb-clothing:server:exitBucket')
+        TriggerServerEvent('orb-clothing:server:resetBucket')
         Bridge.ShowHUD()
         DisplayRadar(true)
+        ClearFocus()       -- release ped-locked streaming
+        DoScreenFadeIn(0)  -- never leave a stopped resource on a black screen
     end
 
     originalCoords     = nil
