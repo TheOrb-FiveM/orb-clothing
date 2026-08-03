@@ -137,12 +137,10 @@ AddEventHandler('qb-clothing:client:loadPlayerClothing', function(data, ped)
     end
 end)
 
--- qb-clothes:client:CreateFirstCharacter
--- Triggered by qb-multicharacter / qb-interior right after a new character
--- is created. Opens the creator in first-time mode.
-AddEventHandler('qb-clothes:client:CreateFirstCharacter', function()
-    TriggerEvent('orb-clothing:client:openForNewCharacter', 'male')
-end)
+-- NOTE: `qb-clothes:client:CreateFirstCharacter` is handled in client/main.lua
+-- (core), NOT here. It is the framework-standard new-character handoff that BOTH
+-- qb-core and QBox (qbx_core) fire regardless of clothing system, so orb answers
+-- it by default — it must not depend on qb-clothing compat mode being enabled.
 
 -- qb-clothing:client:openMenu
 -- Triggered by qb-adminmenu to open the clothing menu on the current player.

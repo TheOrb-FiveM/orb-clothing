@@ -1174,6 +1174,20 @@ AddEventHandler('orb-clothing:client:openForNewCharacter', function(gender)
     OpenCreator(nil, nil)
 end)
 
+-- Framework-standard new-character handoff. Different spawn/apartment resources
+-- fire `qb-clothes:client:CreateFirstCharacter` in DIFFERENT ways:
+--   • qbx_core/qb-multicharacter fire it LOCALLY   → TriggerEvent (client-side)
+--   • qbx_properties fires it OVER THE NETWORK      → TriggerClientEvent (server-side,
+--     e.g. qbx_properties/server/apartmentselect.lua)
+-- RegisterNetEvent catches BOTH (a net-registered event still receives local
+-- triggers); a plain AddEventHandler would miss the TriggerClientEvent path and the
+-- creator would never open on servers that spawn via qbx_properties. Handled in core
+-- by DEFAULT (not gated behind CompatMode.qbClothing) since it's the standard entry
+-- point, not a qb-clothing-specific hook.
+RegisterNetEvent('qb-clothes:client:CreateFirstCharacter', function()
+    TriggerEvent('orb-clothing:client:openForNewCharacter', 'male')
+end)
+
 -- Server confirms save
 RegisterNetEvent('orb-clothing:client:creatorSaved', function(success, reason)
     if success then
@@ -1226,6 +1240,13 @@ local SPAWN_APPLY_DELAY_MS = 500
 
 Bridge.OnPlayerLoaded(function()
     Wait(SPAWN_APPLY_DELAY_MS)
+
+    -- First-character creation owns the ped: qbx_core/qb-multichar fire
+    -- OnPlayerLoaded and CreateFirstCharacter back-to-back, so this delayed apply
+    -- would otherwise race the creator's own model swap 500ms in. If the creator
+    -- is up (first-time or a store), leave the ped to it — it applies + saves the
+    -- appearance itself.
+    if isFirstTime or isCreatorOpen then return end
 
     lib.callback('orb-clothing:server:loadAppearance', false, function(data)
         if not data then

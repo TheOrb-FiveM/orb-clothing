@@ -121,14 +121,21 @@ function Bridge.MirrorSkin(identifier, model, skinJson)
     if not identifier then return end
 
     if Bridge.Framework == 'qbx' or Bridge.Framework == 'qbcore' then
-        -- QBCore uses `playerskins` table for character select preview.
-        -- IMPORTANT: qb-multicharacter's client does `tonumber(result.model)`
-        -- on the DB value and falls back to a random ped if the tonumber fails.
-        -- Stock qb-clothing stored the string model name and thus always
-        -- triggered the random-preview fallback (a latent qb-clothing bug).
-        -- We store the numeric joaat hash as a string so tonumber() succeeds
-        -- and the character-select preview actually matches the saved gender.
-        local modelForPreview = tostring(joaat(model))
+        -- Both frameworks read the active `playerskins.model` for the char-select
+        -- preview, but they decode it INCOMPATIBLY:
+        --   • qb-multicharacter (QBCore) does `tonumber(model)` → needs the numeric
+        --     joaat hash as a string (a plain name tonumbers to nil → random ped).
+        --   • qbx_core (QBox) does `joaat(model)` in server/character.lua → needs the
+        --     model NAME. Feeding it the numeric-hash string double-hashes it
+        --     (joaat("1885233650")) into an INVALID model, which crashes
+        --     lib.requestModel in char select and hangs the loading screen.
+        -- So the correct value depends on the framework — branch, don't guess.
+        local modelForPreview
+        if Bridge.Framework == 'qbx' then
+            modelForPreview = model                    -- name; qbx_core joaat()s it
+        else
+            modelForPreview = tostring(joaat(model))   -- numeric string; qb-multichar tonumber()s it
+        end
         MySQL.Async.execute('UPDATE playerskins SET active = 0 WHERE citizenid = ?', { identifier }, function()
             MySQL.Async.execute(
                 'INSERT INTO playerskins (citizenid, model, skin, active) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE model = VALUES(model), skin = VALUES(skin), active = 1',
@@ -235,15 +242,20 @@ MySQL.ready(function()
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
         ]], {})
 
-        -- Heal legacy skins: stock qb-clothing stored the model as a STRING
-        -- ("mp_m_freemode_01"), but qb-multicharacter runs tonumber(model) and
-        -- falls back to a RANDOM PED when that fails — so characters created
-        -- before orb-clothing spawn as a random ped. Convert the two freemode
-        -- model names to their numeric joaat hash (the exact value MirrorSkin
-        -- writes for new characters). Idempotent — already-numeric rows are left
-        -- untouched. Runs once per boot.
-        MySQL.update.await("UPDATE playerskins SET model = ? WHERE model = 'mp_m_freemode_01'", { tostring(joaat('mp_m_freemode_01')) })
-        MySQL.update.await("UPDATE playerskins SET model = ? WHERE model = 'mp_f_freemode_01'", { tostring(joaat('mp_f_freemode_01')) })
+        -- Heal legacy skins so char-select loads a VALID model. The two frameworks
+        -- want playerskins.model in OPPOSITE formats (see MirrorSkin):
+        --   • QBCore (qb-multicharacter tonumber): numeric joaat hash as a string.
+        --   • QBX (qbx_core joaat): the model NAME. A numeric-hash string here
+        --     double-hashes to an invalid model and hangs the loading screen.
+        -- Convert existing rows into the format THIS framework needs. Idempotent —
+        -- rows already in the right format are untouched. Runs once per boot.
+        if Bridge.Framework == 'qbcore' then
+            MySQL.update.await("UPDATE playerskins SET model = ? WHERE model = 'mp_m_freemode_01'", { tostring(joaat('mp_m_freemode_01')) })
+            MySQL.update.await("UPDATE playerskins SET model = ? WHERE model = 'mp_f_freemode_01'", { tostring(joaat('mp_f_freemode_01')) })
+        else -- qbx: reverse the heal — numeric-hash strings back to the NAME qbx_core joaat()s
+            MySQL.update.await("UPDATE playerskins SET model = 'mp_m_freemode_01' WHERE model = ?", { tostring(joaat('mp_m_freemode_01')) })
+            MySQL.update.await("UPDATE playerskins SET model = 'mp_f_freemode_01' WHERE model = ?", { tostring(joaat('mp_f_freemode_01')) })
+        end
     end
 
     if Config.Debug then
