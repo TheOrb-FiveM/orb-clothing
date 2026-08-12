@@ -31,6 +31,10 @@ CameraSystem.basePointAt         = nil
 CameraSystem.verticalPanOffset   = 0.0
 CameraSystem.horizontalPanOffset = 0.0
 
+-- True only during a smooth preset interp (see ApplyCameraPosition). The ownership
+-- guard skips this window so it can't snap the blend short.
+CameraSystem.transitioning       = false
+
 local PAN_MIN_OFFSET = -0.6  -- metres below the preset (toward feet)
 local PAN_MAX_OFFSET =  0.8  -- metres above the preset (toward head)
 local PAN_STEP       =  0.04 -- metres per drag tick (matches rotation DRAG_THRESHOLD feel)
@@ -268,6 +272,7 @@ local function ApplyCameraPosition(position, anchorCoords, anchorHeading, smooth
         SetCamNearClip(newCam, 0.05)
 
         ApplyDof(newCam)
+        CameraSystem.transitioning = true
         SetCamActiveWithInterp(newCam, CameraSystem.activeCamera, CAMERA_TRANSITION_MS, 1, 1)
 
         -- Destroy the old camera after the transition finishes
@@ -276,6 +281,7 @@ local function ApplyCameraPosition(position, anchorCoords, anchorHeading, smooth
         CameraSystem.currentPosition = position
 
         SetTimeout(CAMERA_TRANSITION_MS + 100, function()
+            CameraSystem.transitioning = false
             if DoesCamExist(oldCam) then
                 DestroyCam(oldCam, false)
             end
@@ -357,6 +363,37 @@ end
 function CameraSystem.GetCurrentPosition()
     return CameraSystem.currentPosition
 end
+
+-- Re-assert OUR camera as the one being rendered. In the character-creation flow
+-- the multicharacter (e.g. Exo) tears down its OWN selector camera a beat AFTER it
+-- hands off to us, and that teardown calls RenderScriptCams(false), which is GLOBAL
+-- and also kills OUR scripted camera. The player then drops back to the gameplay
+-- (third-person) camera with the creator UI still open, and zoom/pan die. Reclaim
+-- rendering whenever our cam is not the one showing. No-op when nothing fights us.
+function CameraSystem.EnsureOwnership()
+    local cam = CameraSystem.activeCamera
+    if not cam or not DoesCamExist(cam) then return end
+    if CameraSystem.transitioning then return end
+    if GetRenderingCam() ~= cam then
+        RenderScriptCams(true, false, 0, true, true)
+        SetCamActive(cam, true)
+    end
+end
+
+-- Per-frame ownership guard, active ONLY while a creator camera exists. It reclaims
+-- rendering within a single frame of any external RenderScriptCams(false), so the
+-- multicharacter's late selector-camera teardown can't detach us. Cheap: one
+-- GetRenderingCam compare per frame while open, and it sleeps when no creator is up.
+CreateThread(function()
+    while true do
+        if CameraSystem.activeCamera then
+            CameraSystem.EnsureOwnership()
+            Wait(0)
+        else
+            Wait(500)
+        end
+    end
+end)
 
 -- Adjust FOV by wheel-tick delta. Positive = zoom in, negative = zoom out.
 -- Clamped to [ZOOM_MIN_FOV, ZOOM_MAX_FOV]. Zoom is reset automatically on

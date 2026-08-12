@@ -975,6 +975,13 @@ local function CloseCreator()
     originalHeading    = nil
     originalModel      = nil
 
+    -- Standard qb-clothing close signal. Multicharacters and other qb-clothing
+    -- consumers (e.g. Exo) wait for `qb-clothing:client:onMenuClose` to reset their
+    -- "creator active" state and resume the spawn/boot flow (HUD, inventory, jobs).
+    -- Without it, a first-character creation leaves those resources stuck thinking
+    -- the creator is still open, so the player spawns with no HUD.
+    TriggerEvent('qb-clothing:client:onMenuClose')
+
     -- Hold black a moment so the restored world finishes streaming, then reveal it.
     Wait(FADE_SETTLE_MS)
     TransitionFadeIn()
@@ -1133,6 +1140,18 @@ end
 -- Triggered by multichar after a new character is created — opens creator in first-time mode
 AddEventHandler('orb-clothing:client:openForNewCharacter', function(gender)
     isFirstTime = true
+
+    -- Wait for the multicharacter's spawn/switch/fade to fully settle BEFORE we
+    -- build the creator + scripted camera. This mirrors illenium-appearance
+    -- (game/customization.lua startPlayerCustomization). A scripted camera created
+    -- mid-switch does NOT become the rendering cam, so afterwards our zoom/pan
+    -- (SetCamFov/SetCamCoord on our cam) apply to a camera nobody sees and look
+    -- dead, while ped rotation still works. Bounded so it can never hang.
+    local settleT = GetGameTimer()
+    while (not IsScreenFadedIn() or IsPlayerSwitchInProgress() or IsPlayerTeleportActive())
+        and GetGameTimer() - settleT < 5000 do
+        Wait(0)
+    end
 
     local isMale    = gender ~= 'female'
     local modelName = isMale and Config.PedModels.Male or Config.PedModels.Female
