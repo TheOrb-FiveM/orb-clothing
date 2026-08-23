@@ -75,13 +75,8 @@ const IMAGE_MAPPING = {
     'accessories_bracelets': { prefix: 'bracelets_1', gameOffset: -1 },
     'accessories_earrings':  { prefix: 'ear_1', gameOffset: -1 },
     'hair_hairstyle':        { prefix: 'hair_1' },
-    // Heritage parents (Mother/Father) intentionally have NO image mapping.
-    // The head-blend parent pool (0-45) is SHARED between both slots, and at 100%
-    // a single parent renders masculine regardless of the ped's gender — so any
-    // pre-baked "mom"/"dad" thumbnail is wrong for many indices (this is exactly
-    // why the shipped CDN "mom" set looked male). illenium-appearance uses numeric
-    // sliders + the live ped for the same reason. We fall back to numbered cards;
-    // selecting one applies the head blend and the live ped shows the real result.
+    'heritage_mother':       { prefix: 'mom', fixedGender: 'female' },
+    'heritage_father':       { prefix: 'dad', fixedGender: 'male' },
     // Face features (png, in creator_images/)
     'features_eyebrows':     { creator: 'eyebrows', hasGender: true },
     'features_eyes':         { creator: 'eyes', hasGender: true },
