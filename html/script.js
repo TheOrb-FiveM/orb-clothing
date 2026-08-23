@@ -31,6 +31,7 @@ const GREENSCREEN_MAP = {
     'clothing_vests':        { type: 'clothing', id: 9 },
     'clothing_decals':       { type: 'clothing', id: 10 },
     'clothing_tops':         { type: 'clothing', id: 11 },
+    'accessories_chains':    { type: 'clothing', id: 7 },
     'clothing_hats':         { type: 'prop', id: 0 },
     'clothing_glasses':      { type: 'prop', id: 1 },
     'accessories_earrings':  { type: 'prop', id: 2 },
@@ -69,16 +70,23 @@ const IMAGE_MAPPING = {
     'clothing_pants':        { prefix: 'pants_1' },
     'clothing_backpacks':    { prefix: 'bags_1' },
     'clothing_shoes':        { prefix: 'shoes_1' },
+    'accessories_chains':    { prefix: 'chain_1' },
     'accessories_watches':   { prefix: 'watches_1', gameOffset: -1 },
     'accessories_bracelets': { prefix: 'bracelets_1', gameOffset: -1 },
     'accessories_earrings':  { prefix: 'ear_1', gameOffset: -1 },
     'hair_hairstyle':        { prefix: 'hair_1' },
-    'heritage_mother':       { prefix: 'mom', fixedGender: 'female' },
-    'heritage_father':       { prefix: 'dad', fixedGender: 'male' },
+    // Heritage parents (Mother/Father) intentionally have NO image mapping.
+    // The head-blend parent pool (0-45) is SHARED between both slots, and at 100%
+    // a single parent renders masculine regardless of the ped's gender — so any
+    // pre-baked "mom"/"dad" thumbnail is wrong for many indices (this is exactly
+    // why the shipped CDN "mom" set looked male). illenium-appearance uses numeric
+    // sliders + the live ped for the same reason. We fall back to numbered cards;
+    // selecting one applies the head blend and the live ped shows the real result.
     // Face features (png, in creator_images/)
     'features_eyebrows':     { creator: 'eyebrows', hasGender: true },
     'features_eyes':         { creator: 'eyes', hasGender: true },
     'hair_beard':            { creator: 'facialHair', hasGender: true },
+    'makeup_makeup':         { creator: 'makeup', hasGender: true },
     'makeup_lipstick':       { creator: 'lipstick', hasGender: true },
     'makeup_blush':          { creator: 'blush', hasGender: true },
 };
@@ -331,6 +339,7 @@ const SUBCATEGORIES = {
         { id: 'beard', name: 'Beard', icon: 'assets/icon-hair.svg', count: 36 }
     ],
     makeup: [
+        { id: 'makeup', name: 'Makeup', icon: 'assets/icon-makeup.svg', count: 75 },
         { id: 'lipstick', name: 'Lipstick', icon: 'assets/icon-makeup.svg', count: 10 },
         { id: 'blush', name: 'Blush', icon: 'assets/icon-makeup.svg', count: 7 }
     ],
@@ -348,6 +357,7 @@ const SUBCATEGORIES = {
         { id: 'shoes', name: 'Shoes', icon: 'assets/icon-shoes.svg', count: 120 }
     ],
     accessories: [
+        { id: 'chains', name: 'Necklaces', icon: 'assets/icon-accessories.svg', count: 100 },
         { id: 'watches', name: 'Watches', icon: 'assets/icon-watch.svg', count: 40 },
         { id: 'bracelets', name: 'Bracelets', icon: 'assets/icon-bracelet.svg', count: 20 },
         { id: 'earrings', name: 'Earrings', icon: 'assets/icon-earring.svg', count: 40 }
@@ -465,6 +475,15 @@ const CATEGORY_CONTENT = {
     },
     makeup: {
         subcategoryContent: {
+            makeup: {
+                sections: [{ id: 'makeup', title: 'Makeup', type: 'items', count: 75 }],
+                sliders: [
+                    { id: 'makeupOpacity', label: 'Makeup Opacity' }
+                ],
+                controls: [
+                    { id: 'makeupColor', label: 'Makeup Color', type: 'color', min: 0, max: 63 }
+                ]
+            },
             lipstick: {
                 sections: [{ id: 'lipstick', title: 'Lipstick', type: 'items', count: 10 }],
                 sliders: [
@@ -1350,7 +1369,7 @@ const GTA_MAKEUP_COLORS = [
 ];
 
 // Controls whose color index maps into the makeup palette instead of the hair one.
-const MAKEUP_COLOR_IDS = ['lipstickColor', 'blushColor'];
+const MAKEUP_COLOR_IDS = ['makeupColor', 'lipstickColor', 'blushColor'];
 
 function createColorPicker(control) {
     const wrapper = document.createElement('div');

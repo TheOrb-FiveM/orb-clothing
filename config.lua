@@ -675,6 +675,7 @@ Config.UIMapping = {
     hair_beard = { type = "overlay", overlayId = 1 },
 
     -- Makeup
+    makeup_makeup = { type = "overlay", overlayId = 4 },   -- general face makeup (eyeshadow, etc.)
     makeup_lipstick = { type = "overlay", overlayId = 8 },
     makeup_blush = { type = "overlay", overlayId = 5 },
 
@@ -701,6 +702,9 @@ Config.UIMapping = {
     accessories_watches = { type = "prop", propId = 6, gameOffset = -1 },
     accessories_bracelets = { type = "prop", propId = 7, gameOffset = -1 },
     accessories_earrings = { type = "prop", propId = 2, gameOffset = -1 },
+    -- Necklaces / chains are CLOTHING component 7 (not a prop). No gameOffset:
+    -- drawable 0 = none, so the UI card index maps 1:1 to the game drawable.
+    accessories_chains = { type = "clothing", componentId = 7 },
     accessories_items = { type = "prop", propId = 0 }
 }
 
@@ -744,6 +748,7 @@ Config.SliderMapping = {
     -- Hair/Makeup opacity
     hairOpacity     = { type = "ignore" },
     beardOpacity    = { type = "overlayOpacity", overlayId = 1 },
+    makeupOpacity   = { type = "overlayOpacity", overlayId = 4 },
     lipstickOpacity = { type = "overlayOpacity", overlayId = 8 },
     blushOpacity    = { type = "overlayOpacity", overlayId = 5 },
 
@@ -762,6 +767,7 @@ Config.NumberMapping = {
     -- Overlay colors
     beardColor = { type = "overlayColor", overlayId = 1 },
     eyebrowColor = { type = "overlayColor", overlayId = 2 },
+    makeupColor = { type = "overlayColor", overlayId = 4 },
     lipstickColor = { type = "overlayColor", overlayId = 8 },
     blushColor = { type = "overlayColor", overlayId = 5 },
 
