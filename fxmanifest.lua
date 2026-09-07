@@ -5,7 +5,7 @@ lua54 'yes'
 name 'orb-clothing'
 author 'TheOrb Scripts'
 description 'Advanced Character Creator & Clothing System'
-version '1.8.3'
+version '1.8.4'
 
 dependencies {
     'ox_lib',
@@ -23,8 +23,10 @@ provides {
 
 shared_scripts {
     '@ox_lib/init.lua',
-    'bridge/_detect.lua',
+    -- config.lua FIRST: _detect.lua reads Config.FrameworkOverride / HUDOverride
+    -- synchronously, so it must load after the config that defines them.
     'config.lua',
+    'bridge/_detect.lua',
     -- Localization: translation tables first, then the L() helper that reads them.
     -- Glob so any locale a server drops in (de.lua, fr.lua, …) loads automatically.
     'locales/*.lua',
