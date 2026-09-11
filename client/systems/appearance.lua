@@ -76,8 +76,29 @@ function AppearanceSystem.UpdateOverlay(ped, overlayId, data)
 end
 
 
--- Active ped scale (1.0 = default). Stored so the tick thread can reapply it.
+-- The LOCAL player's chosen scale (1.0 = default). This is the only thing the
+-- local reapply loop reads, and SetLocalScale below is its ONLY writer.
+--
+-- It used to be written from inside UpdateScale for whatever ped that was
+-- called on. UpdateScale also runs for OTHER players' peds (the remote sync
+-- loop) and for the multichar preview ped (setPedAppearance), so every nearby
+-- player and every previewed character overwrote the local player's own
+-- height, and the local loop then applied that foreign value to the local
+-- ped. That was the height desync.
 AppearanceSystem._pedScale = 1.0
+
+--- Record the local player's intended scale. Call this at the DECISION point
+--- (slider, spawn apply), before UpdateScale, and never for a remote ped.
+---
+--- Recording intent separately from applying it also fixes a silent miss:
+--- UpdateScale refuses to touch a ped that is falling, ragdolling or in a
+--- vehicle. On spawn that is common, and previously nothing got recorded, so
+--- the reapply loop stayed asleep and the height never showed up that session.
+--- Now the intent is stored regardless and the loop applies it once the ped is
+--- back on its feet.
+function AppearanceSystem.SetLocalScale(scale)
+    AppearanceSystem._pedScale = math.max(0.85, math.min(1.15, scale or 1.0))
+end
 
 local function _norm(v)
     local mag = math.sqrt(v.x^2 + v.y^2 + v.z^2)
@@ -94,14 +115,15 @@ function AppearanceSystem.UpdateScale(ped, scale, fromTick)
     -- physics owns its transform; forcing SetEntityMatrix every frame here detaches
     -- attached props — the hat pops off and becomes a colliding object the ragdolling
     -- ped then bumps into — and corrupts the ragdoll. The scale re-applies by itself
-    -- once the ped is back on its feet (the loop keeps running). Do NOT write
-    -- _pedScale here either, so the loop resumes at the real scale afterward.
+    -- once the ped is back on its feet (the loop keeps running).
     if IsPedRagdoll(ped) or IsPedFalling(ped) or IsPedDeadOrDying(ped, true) then
         return false
     end
 
+    -- Pure applier: clamp and draw, and NOTHING else. This function must never
+    -- write shared state, because it is called for peds that are not the local
+    -- player. Recording the local intent is SetLocalScale's job.
     scale = math.max(0.85, math.min(1.15, scale))
-    AppearanceSystem._pedScale = scale
 
     local forward, right, upVec, position = GetEntityMatrix(ped)
 

@@ -447,6 +447,11 @@ function NUICallbacks.Register()
         elseif mapping.type == "pedScale" then
             -- Map 0–1 slider to 0.85–1.15 scale range
             local scale = 0.85 + (value * 0.30)
+            -- ped is PlayerPedId() here, so this is the local player's own
+            -- decision: record it, then draw it.
+            if ped == PlayerPedId() then
+                AppearanceSystem.SetLocalScale(scale)
+            end
             AppearanceSystem.UpdateScale(ped, scale)
         end
 

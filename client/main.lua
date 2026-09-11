@@ -1440,6 +1440,13 @@ function ApplyAppearanceFromState(ped, data)
                 AppearanceSystem.UpdateOverlay(ped, mapping.overlayId, overlay)
             elseif mapping.type == 'pedScale' then
                 local scale = 0.85 + (value * 0.30)
+                -- Record the intent ONLY for the local player. This same
+                -- function also runs for the multichar preview ped through the
+                -- setPedAppearance export; recording that would hand the local
+                -- player the height of whichever character is being previewed.
+                if ped == PlayerPedId() then
+                    AppearanceSystem.SetLocalScale(scale)
+                end
                 AppearanceSystem.UpdateScale(ped, scale)
             end
         end
@@ -1516,12 +1523,53 @@ CreateThread(function()
 end)
 
 -- Other players scale sync via state bags
+--
+-- The server replicates each player's height into their player state bag
+-- ('orb-clothing:scale') on login and on every save. Two readers keep
+-- otherPlayerScales correct, and BOTH are needed:
+--
+--   1. The change handler. Instant, but a single shot: it fires once per
+--      change, and if the bag lands before that player has resolved locally,
+--      GetPlayerFromStateBagName returns 0 and the value was simply lost.
+--      That client then showed the player at default height for good.
+--   2. A periodic sweep over GetActivePlayers() that reads every live bag
+--      directly. It catches whatever the handler missed (late joins, players
+--      streaming in after their event, a resource restart) and REBUILDS the
+--      table from scratch, so a player who left is pruned and a recycled
+--      player index can never inherit someone else's scale.
+--
+-- Keyed by LOCAL player index, because GetPlayerPed() wants that.
 local otherPlayerScales = {}
+
+--- The replicated scale of a player by local index, or nil for default/none.
+local function remoteScaleOf(playerIndex)
+    local ok, value = pcall(function()
+        local sid = GetPlayerServerId(playerIndex)
+        if not sid or sid == 0 then return nil end
+        return Player(sid).state['orb-clothing:scale']
+    end)
+    if ok and type(value) == 'number' and value ~= 1.0 then return value end
+    return nil
+end
+
+local function sweepRemoteScales()
+    local fresh = {}
+    local me = PlayerId()
+    for _, idx in ipairs(GetActivePlayers()) do
+        if idx ~= me then
+            local v = remoteScaleOf(idx)
+            if v then fresh[idx] = v end
+        end
+    end
+    otherPlayerScales = fresh
+end
 
 AddStateBagChangeHandler('orb-clothing:scale', nil, function(bagName, _, value)
     local playerId = GetPlayerFromStateBagName(bagName)
+    -- 0 means the player is not resolvable on this client yet. Nothing to do
+    -- here: the sweep below will read the bag once they are.
     if playerId == 0 or playerId == PlayerId() then return end
-    if value and value ~= 1.0 then
+    if type(value) == 'number' and value ~= 1.0 then
         otherPlayerScales[playerId] = value
     else
         otherPlayerScales[playerId] = nil
@@ -1529,15 +1577,25 @@ AddStateBagChangeHandler('orb-clothing:scale', nil, function(bagName, _, value)
 end)
 
 CreateThread(function()
+    Wait(2000) -- let the first wave of players resolve before the first sweep
     while true do
-        local hasScales = next(otherPlayerScales) ~= nil
-        if hasScales then
+        sweepRemoteScales()
+        Wait(5000)
+    end
+end)
+
+CreateThread(function()
+    while true do
+        if next(otherPlayerScales) ~= nil then
             local playerCoords = GetEntityCoords(PlayerPedId())
             for playerId, scale in pairs(otherPlayerScales) do
                 local ped = GetPlayerPed(playerId)
                 if ped ~= 0 and DoesEntityExist(ped) then
                     local otherCoords = GetEntityCoords(ped)
                     if #(playerCoords - otherCoords) < 75.0 then
+                        -- UpdateScale is a pure applier now: this no longer
+                        -- overwrites the local player's own recorded scale,
+                        -- which is what made everyone nearby change YOUR height.
                         AppearanceSystem.UpdateScale(ped, scale, true)
                     end
                 end
