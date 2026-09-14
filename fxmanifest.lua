@@ -5,7 +5,7 @@ lua54 'yes'
 name 'orb-clothing'
 author 'TheOrb Scripts'
 description 'Advanced Character Creator & Clothing System'
-version '1.8.5'
+version '1.8.6'
 
 dependencies {
     'ox_lib',

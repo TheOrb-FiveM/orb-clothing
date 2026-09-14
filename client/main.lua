@@ -1210,7 +1210,9 @@ end)
 -- Server confirms save
 RegisterNetEvent('orb-clothing:client:creatorSaved', function(success, reason)
     if success then
-        CloseCreator()
+        -- A save can also arrive from another resource (orb-height uses this
+        -- same save path). Only tear the creator down if it is actually open.
+        if isCreatorOpen then CloseCreator() end
         if isFirstTime then
             isFirstTime = false
             TriggerEvent('orb-clothing:client:characterCreationComplete')
@@ -1483,6 +1485,49 @@ function ApplyAppearanceFromState(ped, data)
         TattooSystem.ApplyTattoos(ped, data.tattoos)
     end
 end
+
+-- ── Height exports ────────────────────────────────────────────────────────
+-- Used by orb-height (the standalone VIP height menu) so that height changes
+-- go through THIS resource: same scale mapping, same save path, same state
+-- bag other players read, same playerskins mirror. Two resources each running
+-- their own per-frame SetEntityMatrix loop on the same ped fight each other
+-- and flicker; delegating here avoids that entirely.
+--
+-- percent is 0..100 and maps to scale 0.85..1.15, exactly like the creator
+-- slider (bodyHeight), so a value set here and one set in the creator agree.
+
+local function heightPercentToScale(percent)
+    local p = math.max(0, math.min(100, tonumber(percent) or 50))
+    return 0.85 + (p / 100.0) * 0.30
+end
+
+local function heightScaleToPercent(scale)
+    return math.floor(((scale - 0.85) / 0.30) * 100 + 0.5)
+end
+
+--- The local player's current height as a percent (0..100).
+exports('getHeight', function()
+    return heightScaleToPercent(AppearanceSystem._pedScale or 1.0)
+end)
+
+--- Set the local player's height.
+--- @param percent number 0..100
+--- @param persist boolean true also saves it (DB, playerskins mirror, state bag)
+--- @return number the applied scale
+exports('setHeight', function(percent, persist)
+    local scale = heightPercentToScale(percent)
+    AppearanceSystem.SetLocalScale(scale)
+    AppearanceSystem.UpdateScale(PlayerPedId(), scale)
+
+    if persist then
+        -- Partial save: the server shallow-merges it into the existing
+        -- appearance, so nothing else about the character is touched.
+        TriggerServerEvent('orb-clothing:server:saveAppearance', {
+            appearance = { sliders = { bodyHeight = heightScaleToPercent(scale) } },
+        })
+    end
+    return scale
+end)
 
 -- ── setPedAppearance export ───────────────────────────────────────────────
 -- Called by multichar and qbx_core to preview a character's appearance.
